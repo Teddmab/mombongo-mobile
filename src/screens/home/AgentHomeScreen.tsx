@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
-import { agentFarmers, agentReports } from "@/data/mock";
+import { useAgentFarmers, useAgentReports } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const STATUS = {
@@ -23,6 +23,8 @@ const QUICK = [
 export function AgentHomeScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: agentFarmers = [] } = useAgentFarmers();
+  const { data: agentReports = [] } = useAgentReports();
   const { userProfile } = useAuth();
   const firstName = (userProfile?.displayName || "Patrick").split(" ")[0];
   const urgentCount = agentFarmers.filter((f) => f.status === "urgent").length;

@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BourseTickerBar } from "@/components/bourse/BourseTickerBar";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { bourseOpportunities } from "@/data/mock";
+import { useBourseOpportunities } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const TYPE_ICON = {
@@ -16,6 +16,7 @@ const TYPE_ICON = {
 export function AgentBourseScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: bourseOpportunities = [] } = useBourseOpportunities();
 
   return (
     <TabScreen>

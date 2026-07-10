@@ -116,6 +116,12 @@ export const bourseOpportunities: BourseOpportunity[] = [
   { id: "b6", title: "Transport Cacao Mayombe → Matadi", type: "transport", origin: "Mayombe", destination: "Matadi", volume: "200 kg", price: "$450", commission: 22, duration: "4 jours", spotsLeft: 1, spotsTotal: 4 },
 ];
 
+export interface Instructor {
+  name: string;
+  title: string;
+  image: string;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -126,9 +132,17 @@ export interface Course {
   progress: number;
   icon: string;
   image?: string;
+  heroImage?: string;
+  instructor?: Instructor;
   description: string;
   isPremium: boolean;
   previewModules: number;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct: number;
 }
 
 export interface CourseModule {
@@ -136,25 +150,81 @@ export interface CourseModule {
   type: "video" | "reading" | "quiz";
   duration: string;
   content?: string;
+  quiz?: QuizQuestion[];
 }
 
 export const courses: Course[] = [
-  { id: "c1", title: "Gestion Financière de la Ferme", category: "Finance", duration: "3h 20min", modules: 6, level: "Débutant", progress: 45, icon: "💰", image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=300&h=200&q=80", description: "Apprenez à gérer la trésorerie, planifier les récoltes et calculer le ROI.", isPremium: false, previewModules: 6 },
-  { id: "c2", title: "Agriculture Biologique en RDC", category: "Production", duration: "5h 10min", modules: 8, level: "Intermédiaire", progress: 0, icon: "🌱", image: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=300&h=200&q=80", description: "Techniques bio adaptées au climat congolais.", isPremium: true, previewModules: 2 },
-  { id: "c3", title: "Export Café & Cacao", category: "Commerce", duration: "4h 00min", modules: 7, level: "Avancé", progress: 14, icon: "☕", image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=300&h=200&q=80", description: "Procédures douanières et commerce international.", isPremium: false, previewModules: 7 },
-  { id: "c4", title: "Lutte contre les nuisibles", category: "Production", duration: "2h 15min", modules: 4, level: "Débutant", progress: 100, icon: "🐛", image: "https://images.unsplash.com/photo-1500651230702-0e2d8a49d4ad?auto=format&fit=crop&w=300&h=200&q=80", description: "Méthodes naturelles de protection des cultures.", isPremium: false, previewModules: 4 },
-  { id: "c5", title: "Marketing produits frais", category: "Commerce", duration: "1h 50min", modules: 3, level: "Intermédiaire", progress: 0, icon: "📣", image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=300&h=200&q=80", description: "Vendre mieux sur les marchés locaux.", isPremium: true, previewModules: 1 },
-  { id: "c6", title: "Coopératives et Gouvernance", category: "Gestion", duration: "3h 45min", modules: 5, level: "Intermédiaire", progress: 0, icon: "🤝", image: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&w=300&h=200&q=80", description: "Construire des coopératives durables.", isPremium: true, previewModules: 1 },
+  {
+    id: "c1", title: "Gestion Financière de la Ferme", category: "Finance", duration: "3h 20min", modules: 6, level: "Débutant", progress: 45, icon: "💰",
+    image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "Prof. Patrice Kalala", title: "Économie Agricole · UNIKIN · 4.9 ★", image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Apprenez à gérer la trésorerie, planifier les récoltes et calculer le ROI.", isPremium: false, previewModules: 6,
+  },
+  {
+    id: "c2", title: "Agriculture Biologique en RDC", category: "Production", duration: "5h 10min", modules: 8, level: "Intermédiaire", progress: 0, icon: "🌱",
+    image: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "Dr. Sylvie Nkongolo", title: "Agronome Bio · Univ. Lubumbashi · 4.8 ★", image: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Techniques bio adaptées au climat congolais.", isPremium: true, previewModules: 2,
+  },
+  {
+    id: "c3", title: "Export Café & Cacao", category: "Commerce", duration: "4h 00min", modules: 7, level: "Avancé", progress: 14, icon: "☕",
+    image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "M. Joseph Mutombo", title: "Expert Export · OPEC-RDC · 4.7 ★", image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Procédures douanières et commerce international.", isPremium: false, previewModules: 7,
+  },
+  {
+    id: "c4", title: "Lutte contre les nuisibles", category: "Production", duration: "2h 15min", modules: 4, level: "Débutant", progress: 100, icon: "🐛",
+    image: "https://images.unsplash.com/photo-1500651230702-0e2d8a49d4ad?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1500651230702-0e2d8a49d4ad?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "Prof. Théodore Kyungu", title: "Phytopathologie · ISEA Kisangani · 4.9 ★", image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Méthodes naturelles de protection des cultures.", isPremium: false, previewModules: 4,
+  },
+  {
+    id: "c5", title: "Marketing produits frais", category: "Commerce", duration: "1h 50min", modules: 3, level: "Intermédiaire", progress: 0, icon: "📣",
+    image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "Mme. Christine Bakajika", title: "Marketing Agricole · UNIKIN · 4.8 ★", image: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Vendre mieux sur les marchés locaux.", isPremium: true, previewModules: 1,
+  },
+  {
+    id: "c6", title: "Coopératives et Gouvernance", category: "Gestion", duration: "3h 45min", modules: 5, level: "Intermédiaire", progress: 0, icon: "🤝",
+    image: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&w=300&h=200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&w=1200&h=500&q=80",
+    instructor: { name: "Prof. Emmanuel Tshimanga", title: "Droit Coopératif · UNIKIN · 4.9 ★", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&h=200&q=80" },
+    description: "Construire des coopératives durables.", isPremium: true, previewModules: 1,
+  },
 ];
 
 export const courseModules: Record<string, CourseModule[]> = {
   c1: [
     { title: "Introduction & Objectifs du cours", type: "video", duration: "22 min" },
-    { title: "Comprendre la trésorerie agricole", type: "reading", duration: "18 min", content: "La trésorerie représente l'ensemble des flux financiers de votre exploitation. Une bonne gestion vous permet d'anticiper les périodes creuses et de planifier vos investissements sereinement." },
-    { title: "Quiz : Concepts de trésorerie", type: "quiz", duration: "10 min" },
+    {
+      title: "Comprendre la trésorerie agricole", type: "reading", duration: "18 min",
+      content: "La trésorerie représente l'ensemble des flux financiers de votre exploitation. Une bonne gestion vous permet d'anticiper les périodes creuses et de planifier vos investissements sereinement.\n\nÉtablissez un tableau de suivi mensuel distinguant les entrées (ventes, subventions) des sorties (semences, main-d'œuvre, transport). Cela vous donnera une vision claire sur 6 à 12 mois.\n\nL'erreur la plus courante est de confondre profit et trésorerie. Vous pouvez être rentable sur le papier et manquer de liquidités pour payer vos fournisseurs.",
+    },
+    {
+      title: "Quiz : Concepts de trésorerie", type: "quiz", duration: "10 min",
+      quiz: [
+        { question: "Qu'est-ce que la trésorerie d'une exploitation ?", options: ["La valeur des terres", "Les flux financiers entrants et sortants", "Le stock de semences", "Le revenu annuel brut"], correct: 1 },
+        { question: "Un budget prévisionnel vous permet de :", options: ["Calculer vos impôts", "Anticiper dépenses et recettes sur 12 mois", "Choisir vos cultures", "Fixer vos prix de vente"], correct: 1 },
+      ],
+    },
     { title: "Planifier les récoltes & flux saisonniers", type: "video", duration: "28 min" },
-    { title: "Calculer le ROI agricole", type: "reading", duration: "20 min", content: "Le retour sur investissement (ROI) mesure la rentabilité de chaque hectare cultivé." },
-    { title: "Évaluation finale", type: "quiz", duration: "25 min" },
+    {
+      title: "Calculer le ROI agricole", type: "reading", duration: "20 min",
+      content: "Le retour sur investissement (ROI) mesure la rentabilité de chaque hectare cultivé. La formule est simple : (Gains − Coûts) ÷ Coûts × 100.\n\nExemple : si vous dépensez 300$ pour produire du manioc et le vendez 520$, votre ROI est de 73%. Comparez ce chiffre entre vos différentes cultures pour orienter vos choix.\n\nN'oubliez pas d'inclure votre propre temps de travail dans les coûts, valorisé au salaire minimum local. Beaucoup d'agriculteurs sous-estiment cette charge.",
+    },
+    {
+      title: "Évaluation finale", type: "quiz", duration: "25 min",
+      quiz: [
+        { question: "Le ROI (retour sur investissement) se calcule :", options: ["(Gains − Coûts) ÷ Coûts × 100", "Gains ÷ Nombre de jours", "Coûts × 100 ÷ Gains", "Gains + Coûts"], correct: 0 },
+        { question: "Si vos coûts sont 200$ et vos ventes 350$, votre ROI est :", options: ["35%", "57.5%", "75%", "150%"], correct: 2 },
+        { question: "Quelle période couvre typiquement un budget prévisionnel agricole ?", options: ["1 semaine", "1 mois", "1 saison à 1 an", "5 ans"], correct: 2 },
+      ],
+    },
   ],
 };
 

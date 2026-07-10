@@ -18,7 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type Role } from "@/context/AppContext";
 import { useFullScreenInsets } from "@/hooks/useSafeInsets";
 import { useAuth } from "@/hooks/useAuth";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { authService, AuthServiceError } from "@/services/auth.service";
+import { isDevMode } from "@/lib/dev";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 type Mode = "login" | "signup" | "forgot";
@@ -66,14 +68,10 @@ const ROLES: {
   },
 ];
 
-function GoogleIcon() {
-  return <Text style={{ fontSize: 16 }}>G</Text>;
-}
-
 export function AuthScreen() {
   const { t } = useTranslation();
   const { setRole, role } = useApp();
-  const { isAuthenticated, isLoading, signIn } = useAuth();
+  const { isAuthenticated, isLoading, signInDev } = useAuth();
   const router = useRouter();
   const { top } = useFullScreenInsets();
   const insets = useSafeAreaInsets();
@@ -101,8 +99,10 @@ export function AuthScreen() {
     setSuccess(null);
   };
 
-  const goHome = async (authUser: Awaited<ReturnType<typeof authService.signIn>>) => {
-    await signIn(authUser, role);
+  const afterAuth = async () => {
+    if (isDevMode()) {
+      await signInDev(role);
+    }
     router.replace("/(tabs)/home");
   };
 
@@ -110,8 +110,11 @@ export function AuthScreen() {
     setError(null);
     setLoading(true);
     try {
-      const user = await authService.signIn(email, pwd);
-      await goHome(user);
+      await authService.signIn(email, pwd);
+      if (isDevMode()) {
+        await afterAuth();
+      }
+      // En production, onAuthStateChanged + useEffect isAuthenticated redirige
     } catch (e) {
       setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
     } finally {
@@ -123,8 +126,10 @@ export function AuthScreen() {
     setError(null);
     setLoading(true);
     try {
-      const user = await authService.signUp(email, pwd, fullName, role);
-      await goHome(user);
+      await authService.signUp(email, pwd, fullName, role);
+      if (isDevMode()) {
+        await afterAuth();
+      }
     } catch (e) {
       setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
     } finally {
@@ -141,18 +146,6 @@ export function AuthScreen() {
     } catch (e) {
       setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const user = await authService.signInWithGoogle();
-      await goHome(user);
-    } catch (e) {
-      setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
       setLoading(false);
     }
   };
@@ -378,15 +371,12 @@ export function AuthScreen() {
                   <View style={styles.divider} />
                 </View>
 
-                <Pressable
-                  testID="google-signin"
-                  onPress={handleGoogle}
-                  disabled={loading}
-                  style={[styles.googleBtn, loading && styles.btnDisabled]}
-                >
-                  <GoogleIcon />
-                  <Text style={styles.googleBtnText}>{t("auth.google")}</Text>
-                </Pressable>
+                <GoogleSignInButton
+                  role={role}
+                  loading={loading}
+                  setLoading={setLoading}
+                  setError={setError}
+                />
 
                 <Text style={styles.footerHint}>
                   {t("auth.noAccount")}{" "}

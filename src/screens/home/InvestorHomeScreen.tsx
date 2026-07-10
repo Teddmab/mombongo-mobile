@@ -5,7 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
-import { activity, getFeaturedProducts, investments, type Product } from "@/data/mock";
+import { useFeaturedProducts, type Product } from "@/hooks/useProducts";
+import { useInvestments } from "@/hooks/useInvestments";
+import { useActivity } from "@/hooks/useLocalData";
 import { formatUsd } from "@/lib/utils";
 import { colors, radii, shadows, spacing } from "@/theme";
 
@@ -34,7 +36,9 @@ export function InvestorHomeScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
   const { userProfile } = useAuth();
-  const featured = getFeaturedProducts();
+  const { data: featured = [] } = useFeaturedProducts();
+  const { data: investments = [] } = useInvestments();
+  const { data: activity = [] } = useActivity();
   const totalInvested = formatUsd(userProfile?.totalInvestedUsd ?? 4850);
   const totalEarned = formatUsd(userProfile?.totalEarnedUsd ?? 342);
 

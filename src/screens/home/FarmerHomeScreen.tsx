@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
-import { cropTasks, farmerAlerts } from "@/data/mock";
+import { useCropTasks, useFarmerAlerts } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const QUICK = [
@@ -24,6 +24,8 @@ const ALERT_ICONS = {
 export function FarmerHomeScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: cropTasks = [] } = useCropTasks();
+  const { data: farmerAlerts = [] } = useFarmerAlerts();
   const { userProfile } = useAuth();
   const firstName = (userProfile?.displayName || "Jean-Baptiste").split(" ")[0];
   const disbursed = 650;

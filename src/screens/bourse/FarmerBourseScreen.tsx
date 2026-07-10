@@ -4,13 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { MettreEnVenteModal } from "@/components/forms/ActionForms";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { bourseTicker } from "@/data/mock";
+import { useBourseTicker } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const MY_SYMBOLS = ["PAST-SGL", "MAN-KIN", "OIG-KIN"];
 
 export function FarmerBourseScreen() {
   const scrollPadding = useTabScrollPadding();
+  const { data: bourseTicker = [] } = useBourseTicker();
   const [venteOpen, setVenteOpen] = useState(false);
   const myCrops = bourseTicker.filter((t) => MY_SYMBOLS.includes(t.symbol));
   const bestPrice = myCrops.reduce((b, t) => (t.change > b.change ? t : b), myCrops[0]);

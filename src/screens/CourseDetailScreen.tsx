@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
-  Modal,
+  Image,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,15 +10,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { SubscriptionModal } from "@/components/profile/ProfileModals";
+import { CertificatePreviewModal } from "@/components/academia/CertificatePreviewModal";
+import { ModulePlayerModal } from "@/components/academia/ModulePlayerModal";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import {
-  courses,
-  getCourseModules,
+  useCourseModules,
+  useCourses,
   type Course,
   type CourseModule,
-} from "@/data/mock";
+} from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const USER_HAS_PREMIUM = false;
@@ -28,91 +31,11 @@ function moduleIcon(type: CourseModule["type"]): keyof typeof Ionicons.glyphMap 
   return "help-circle-outline";
 }
 
-function ModulePlayer({
-  visible,
-  mod,
-  locked,
-  onClose,
-  onComplete,
-  onUpgrade,
-}: {
-  visible: boolean;
-  mod: CourseModule;
-  locked: boolean;
-  onClose: () => void;
-  onComplete: () => void;
-  onUpgrade: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.playerRoot, { paddingTop: Math.max(insets.top, 12) }]}>
-        <View style={styles.playerHeader}>
-          <Pressable onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={24} color={colors.gray[700]} />
-          </Pressable>
-          <Text style={styles.playerType}>{mod.type.toUpperCase()}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        {locked ? (
-          <View style={styles.playerLocked}>
-            <Ionicons name="lock-closed" size={40} color={colors.amber[500]} />
-            <Text style={styles.playerLockedTitle}>Contenu Premium</Text>
-            <Text style={styles.playerLockedSub}>
-              Débloquez ce module avec un abonnement Premium.
-            </Text>
-            <Pressable onPress={onUpgrade} style={styles.upgradeBtn}>
-              <Text style={styles.upgradeBtnText}>Mettre à niveau</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={[
-              styles.playerBody,
-              { paddingBottom: Math.max(insets.bottom, 16) + 80 },
-            ]}
-          >
-            <Text style={styles.playerTitle}>{mod.title}</Text>
-            <Text style={styles.playerDuration}>{mod.duration}</Text>
-
-            {mod.type === "video" ? (
-              <View style={styles.videoPlaceholder}>
-                <Ionicons name="play" size={36} color={colors.white} />
-                <Text style={styles.videoPlaceholderText}>Lecture vidéo (mock)</Text>
-              </View>
-            ) : null}
-
-            {mod.type === "reading" && mod.content ? (
-              <Text style={styles.readingContent}>{mod.content}</Text>
-            ) : null}
-
-            {mod.type === "quiz" ? (
-              <View style={styles.quizBox}>
-                <Ionicons name="help-circle-outline" size={32} color={colors.green[700]} />
-                <Text style={styles.quizText}>Quiz interactif — répondez aux questions pour valider le module.</Text>
-              </View>
-            ) : null}
-          </ScrollView>
-        )}
-
-        {!locked ? (
-          <View style={[styles.playerFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <Pressable onPress={onComplete} style={styles.completeBtn}>
-              <Text style={styles.completeBtnText}>Marquer comme terminé</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    </Modal>
-  );
-}
-
 export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   const insets = useSafeAreaInsets();
+  const { data: courses = [] } = useCourses();
   const course = courses.find((c) => c.id === courseId) ?? courses[0];
-  const mods = getCourseModules(course);
+  const { data: mods = [] } = useCourseModules(course?.id);
 
   const initialDone = Math.round((course.progress / 100) * course.modules);
   const [completedSet, setCompletedSet] = useState<Set<number>>(
@@ -120,6 +43,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   );
   const [playing, setPlaying] = useState<number | null>(null);
   const [subOpen, setSubOpen] = useState(false);
+  const [certOpen, setCertOpen] = useState(false);
 
   const progress = Math.round((completedSet.size / course.modules) * 100);
   const isFullyComplete = completedSet.size >= course.modules;
@@ -156,9 +80,22 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 72 }}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIconWrap}>
-            <Text style={styles.heroIcon}>{course.icon}</Text>
-          </View>
+          {course.heroImage ? (
+            <ImageBackground source={{ uri: course.heroImage }} style={styles.heroBg} imageStyle={styles.heroBgImg}>
+              <View style={styles.heroOverlay} />
+            </ImageBackground>
+          ) : null}
+          <View style={styles.heroContent}>
+            <View style={styles.heroIconWrap}>
+              {course.heroImage ? (
+                <Image source={{ uri: course.heroImage }} style={styles.heroPhoto} resizeMode="cover" />
+              ) : (
+                <Text style={styles.heroIcon}>{course.icon}</Text>
+              )}
+              {!course.heroImage ? null : (
+                <Text style={[styles.heroIcon, styles.heroIconOverlay]}>{course.icon}</Text>
+              )}
+            </View>
           <Text style={styles.heroTitle}>{course.title}</Text>
           <View style={styles.heroMeta}>
             <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
@@ -182,6 +119,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
               <Text style={styles.premiumPillText}>PREMIUM</Text>
             </View>
           ) : null}
+          </View>
         </View>
 
         {course.isPremium && !USER_HAS_PREMIUM ? (
@@ -202,10 +140,13 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
         {isFullyComplete ? (
           <View style={[styles.doneBanner, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
             <Ionicons name="trophy" size={20} color={colors.green[700]} />
-            <View>
+            <View style={styles.doneBannerBody}>
               <Text style={styles.doneTitle}>Cours terminé — Félicitations !</Text>
-              <Text style={styles.doneSub}>Certificat disponible dans votre profil.</Text>
+              <Text style={styles.doneSub}>Votre certificat est disponible.</Text>
             </View>
+            <Pressable onPress={() => setCertOpen(true)} style={styles.certBtn}>
+              <Text style={styles.certBtnText}>Voir le certificat</Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -215,6 +156,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
             const done = completedSet.has(i);
             const locked = isLocked(i);
             const accessible = canOpen(i);
+            const isPreview = course.isPremium && !USER_HAS_PREMIUM && i < course.previewModules;
             return (
               <Pressable
                 key={i}
@@ -248,9 +190,16 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
                   )}
                 </View>
                 <View style={styles.moduleBody}>
-                  <Text style={styles.moduleTitle} numberOfLines={2}>
-                    {mod.title}
-                  </Text>
+                  <View style={styles.moduleTitleRow}>
+                    <Text style={styles.moduleTitle} numberOfLines={2}>
+                      {mod.title}
+                    </Text>
+                    {isPreview && !done ? (
+                      <View style={styles.previewBadge}>
+                        <Text style={styles.previewBadgeText}>Aperçu</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <View style={styles.moduleMeta}>
                     <Text style={styles.moduleDuration}>{mod.duration}</Text>
                     <Text style={styles.moduleType}>{mod.type}</Text>
@@ -266,6 +215,19 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
             );
           })}
         </View>
+
+        {course.instructor ? (
+          <>
+            <Text style={styles.sectionLabel}>Instructeur</Text>
+            <View style={[styles.instructorCard, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
+              <Image source={{ uri: course.instructor.image }} style={styles.instructorPhoto} />
+              <View style={styles.instructorBody}>
+                <Text style={styles.instructorName}>{course.instructor.name}</Text>
+                <Text style={styles.instructorTitle}>{course.instructor.title}</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
 
         <Text style={styles.sectionLabel}>À propos</Text>
         <View style={[styles.aboutCard, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
@@ -300,7 +262,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
       </View>
 
       {activeMod && playing !== null ? (
-        <ModulePlayer
+        <ModulePlayerModal
           visible={playing !== null}
           mod={activeMod}
           locked={isLocked(playing)}
@@ -313,19 +275,11 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
         />
       ) : null}
 
-      <SubscriptionModal
-        visible={subOpen}
-        onClose={() => setSubOpen(false)}
-        planName="Premium Academia"
-        price={9.99}
-        period="mois"
-        description="Accès complet à tous les cours premium"
-        features={[
-          "Tous les modules débloqués",
-          "Certificats officiels",
-          "Contenu hors-ligne",
-          "Support prioritaire",
-        ]}
+      <SubscriptionModal visible={subOpen} onClose={() => setSubOpen(false)} />
+      <CertificatePreviewModal
+        course={course}
+        visible={certOpen}
+        onClose={() => setCertOpen(false)}
       />
     </View>
   );
@@ -335,6 +289,18 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.appBackground },
   hero: {
     backgroundColor: colors.green[800],
+    overflow: "hidden",
+    position: "relative",
+  },
+  heroBg: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroBgImg: { opacity: 0.25 },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20,83,45,0.65)",
+  },
+  heroContent: {
     alignItems: "center",
     paddingTop: spacing.md,
     paddingBottom: spacing["2xl"],
@@ -347,8 +313,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  heroPhoto: { width: "100%", height: "100%" },
   heroIcon: { fontSize: 40 },
+  heroIconOverlay: {
+    position: "absolute",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   heroTitle: {
     fontSize: 20,
     fontWeight: "800",
@@ -413,8 +387,16 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     padding: spacing.md,
   },
+  doneBannerBody: { flex: 1 },
   doneTitle: { fontSize: 12, fontWeight: "700", color: colors.green[800] },
   doneSub: { fontSize: 11, color: colors.green[700], marginTop: 2 },
+  certBtn: {
+    backgroundColor: colors.green[700],
+    borderRadius: radii.lg,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  certBtnText: { fontSize: 11, fontWeight: "700", color: colors.white },
   sectionLabel: {
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
@@ -449,7 +431,15 @@ const styles = StyleSheet.create({
   moduleIconDone: { backgroundColor: colors.green[700] },
   moduleIconLocked: { backgroundColor: colors.gray[100] },
   moduleBody: { flex: 1, minWidth: 0 },
-  moduleTitle: { fontSize: 13, fontWeight: "700", color: colors.gray[900] },
+  moduleTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  moduleTitle: { fontSize: 13, fontWeight: "700", color: colors.gray[900], flex: 1 },
+  previewBadge: {
+    backgroundColor: colors.green[50],
+    borderRadius: radii.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  previewBadgeText: { fontSize: 9, fontWeight: "700", color: colors.green[700] },
   moduleMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
   moduleDuration: { fontSize: 10, color: colors.gray[400] },
   moduleType: {
@@ -490,6 +480,20 @@ const styles = StyleSheet.create({
   aboutCell: { flex: 1 },
   aboutCellLabel: { fontSize: 10, fontWeight: "700", color: colors.gray[400], textTransform: "uppercase" },
   aboutCellValue: { fontSize: 13, fontWeight: "800", color: colors.gray[900], marginTop: 2 },
+  instructorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+  instructorPhoto: { width: 48, height: 48, borderRadius: 24 },
+  instructorBody: { flex: 1 },
+  instructorName: { fontSize: 14, fontWeight: "800", color: colors.gray[900] },
+  instructorTitle: { fontSize: 11, color: colors.gray[500], marginTop: 2 },
   footer: {
     position: "absolute",
     left: 0,
@@ -523,77 +527,4 @@ const styles = StyleSheet.create({
     ...shadows.elevated,
   },
   ctaPremiumText: { fontSize: 14, fontWeight: "700", color: colors.amber[900] },
-  playerRoot: { flex: 1, backgroundColor: colors.white },
-  playerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  playerType: { fontSize: 11, fontWeight: "700", color: colors.gray[400], letterSpacing: 1 },
-  playerBody: { padding: SCREEN_HORIZONTAL_PADDING },
-  playerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.gray[900],
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-  },
-  playerDuration: { fontSize: 12, color: colors.gray[500], marginTop: 4, marginBottom: spacing.lg },
-  videoPlaceholder: {
-    height: 200,
-    backgroundColor: colors.green[800],
-    borderRadius: radii.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  videoPlaceholderText: { fontSize: 12, color: "rgba(255,255,255,0.7)" },
-  readingContent: { fontSize: 14, color: colors.gray[700], lineHeight: 22 },
-  quizBox: {
-    alignItems: "center",
-    padding: spacing["2xl"],
-    backgroundColor: colors.green[50],
-    borderRadius: radii.xl,
-    gap: spacing.md,
-  },
-  quizText: { fontSize: 13, color: colors.gray[600], textAlign: "center", lineHeight: 20 },
-  playerFooter: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-    paddingTop: spacing.md,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
-  },
-  completeBtn: {
-    height: 48,
-    backgroundColor: colors.green[700],
-    borderRadius: radii.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  completeBtnText: { fontSize: 14, fontWeight: "700", color: colors.white },
-  playerLocked: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing["2xl"],
-    gap: spacing.md,
-  },
-  playerLockedTitle: { fontSize: 18, fontWeight: "700", color: colors.gray[900] },
-  playerLockedSub: { fontSize: 13, color: colors.gray[500], textAlign: "center" },
-  upgradeBtn: {
-    marginTop: spacing.md,
-    backgroundColor: colors.amber[400],
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: radii.lg,
-  },
-  upgradeBtnText: { fontSize: 13, fontWeight: "700", color: colors.amber[900] },
 });

@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,10 +8,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { PaymentModal } from "@/components/PaymentModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { isDevMode } from "@/lib/dev";
-import { bourseOpportunities, type BourseOpportunity } from "@/data/mock";
+import { useBourseOpportunities, type BourseOpportunity } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const TYPE_ICON: Record<
@@ -26,101 +23,37 @@ const TYPE_ICON: Record<
   transformation: "construct-outline",
 };
 
-function ReserveModal({
-  visible,
-  onClose,
-  title,
-  amount,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  title: string;
-  amount: number;
-}) {
-  const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const handleConfirm = async () => {
-    setLoading(true);
-    if (isDevMode()) {
-      await new Promise((r) => setTimeout(r, 1200));
-      setDone(true);
-    } else {
-      Alert.alert("Mombongo", "Connexion Firebase requise pour réserver.");
-    }
-    setLoading(false);
-  };
-
-  const close = () => {
-    onClose();
-    setTimeout(() => setDone(false), 300);
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <Pressable style={styles.modalBackdrop} onPress={close} />
-      <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <View style={styles.modalHero}>
-          <Text style={styles.modalHeroLabel}>RÉSERVATION BOURSE</Text>
-          <Text style={styles.modalHeroTitle}>{title}</Text>
-          <Text style={styles.modalHeroAmount}>{amount.toLocaleString()} FC</Text>
-        </View>
-        <View style={styles.modalBody}>
-          {done ? (
-            <>
-              <View style={styles.successRow}>
-                <Ionicons name="checkmark-circle" size={48} color={colors.amber[500]} />
-                <Text style={styles.successTitle}>Place réservée !</Text>
-                <Text style={styles.successSub}>Vous recevrez une confirmation par SMS.</Text>
-              </View>
-              <Pressable onPress={close} style={styles.reserveBtn}>
-                <Text style={styles.reserveBtnText}>Fermer</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.modalHint}>
-                Votre mise sera bloquée jusqu'à la clôture de la souscription. Commission incluse au versement final.
-              </Text>
-              <Pressable
-                onPress={handleConfirm}
-                disabled={loading}
-                style={[styles.reserveBtn, loading && { opacity: 0.6 }]}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.amber[900]} />
-                ) : (
-                  <Text style={styles.reserveBtnText}>Confirmer la réservation</Text>
-                )}
-              </Pressable>
-              <Pressable onPress={close} style={styles.cancelLink}>
-                <Text style={styles.cancelLinkText}>Annuler</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }) {
   const insets = useSafeAreaInsets();
+  const { data: bourseOpportunities = [] } = useBourseOpportunities();
   const opp = bourseOpportunities.find((b) => b.id === opportunityId) ?? bourseOpportunities[0];
-  const filled = ((opp.spotsTotal - opp.spotsLeft) / opp.spotsTotal) * 100;
+
   const [stake, setStake] = useState(50000);
   const [payOpen, setPayOpen] = useState(false);
 
+  const commission = opp?.commission ?? 0;
   const commissionAmount = useMemo(
-    () => Math.round((stake * opp.commission) / 100),
-    [stake, opp.commission]
+    () => Math.round((stake * commission) / 100),
+    [stake, commission],
   );
   const total = stake + commissionAmount;
 
   const adjustStake = (delta: number) => {
     setStake((prev) => Math.min(500000, Math.max(10000, prev + delta)));
   };
+
+  if (!opp) {
+    return (
+      <View style={styles.root}>
+        <StackHeader title="Bourse" />
+        <Text style={{ textAlign: "center", marginTop: 48, color: colors.gray[500] }}>
+          Opportunité introuvable
+        </Text>
+      </View>
+    );
+  }
+
+  const filled = ((opp.spotsTotal - opp.spotsLeft) / opp.spotsTotal) * 100;
 
   return (
     <View style={styles.root} testID="bourse-detail-screen">
@@ -245,11 +178,15 @@ export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }
         </Pressable>
       </View>
 
-      <ReserveModal
+      <PaymentModal
         visible={payOpen}
         onClose={() => setPayOpen(false)}
-        title={opp.title}
+        type="reserve"
+        title="Réservation Bourse"
+        subtitle={opp.title}
         amount={stake}
+        currency="FC"
+        onSuccess={() => setPayOpen(false)}
       />
     </View>
   );
@@ -440,42 +377,4 @@ const styles = StyleSheet.create({
     color: colors.amber[900],
     fontFamily: "PlusJakartaSans_700Bold",
   },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  modalSheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radii["3xl"],
-    borderTopRightRadius: radii["3xl"],
-  },
-  modalHero: {
-    backgroundColor: colors.tickerBackground,
-    borderTopLeftRadius: radii["3xl"],
-    borderTopRightRadius: radii["3xl"],
-    padding: spacing.xl,
-  },
-  modalHeroLabel: { fontSize: 10, fontWeight: "700", color: colors.amber[400], letterSpacing: 1 },
-  modalHeroTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: colors.white,
-    marginTop: 4,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-  },
-  modalHeroAmount: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: colors.amber[400],
-    marginTop: spacing.sm,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-  },
-  modalBody: { padding: spacing.xl },
-  modalHint: { fontSize: 12, color: colors.gray[500], lineHeight: 18, marginBottom: spacing.lg },
-  cancelLink: { alignItems: "center", marginTop: spacing.md },
-  cancelLinkText: { fontSize: 12, color: colors.gray[400] },
-  successRow: { alignItems: "center", paddingVertical: spacing.lg, gap: spacing.sm },
-  successTitle: { fontSize: 18, fontWeight: "700", color: colors.gray[900] },
-  successSub: { fontSize: 13, color: colors.gray[500], textAlign: "center" },
 });

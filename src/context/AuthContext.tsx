@@ -1,13 +1,14 @@
+import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  createContext,
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+  type User as FirebaseUser,
+  onAuthStateChanged,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import type { Role } from "@/context/AppContext";
-import type { AuthUser } from "@/services/auth.service";
+import { useApp } from "@/context/AppContext";
+import { auth, functions, isDevMode } from "@/lib/firebase";
+import { LoadingScreen } from "@/screens/LoadingScreen";
 
 export type UserRole = "admin" | "agent" | "farmer" | "merchant" | "investor";
 
@@ -22,67 +23,118 @@ export interface UserProfile {
 }
 
 export interface AuthContextValue {
-  user: AuthUser | null;
+  user: FirebaseUser | null;
   userProfile: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  signIn: (user: AuthUser, role: Role) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  /** Mode dev uniquement — session mock après auth.service */
+  signInDev: (role: Role) => Promise<void>;
 }
-
-const SESSION_KEY = "mb_auth_session";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-function buildProfile(user: AuthUser, role: Role): UserProfile {
+const DEV_MOCK_PROFILE: UserProfile = {
+  uid: "dev-user-001",
+  email: "alain@mombongo.cd",
+  displayName: "Alain",
+  role: "investor",
+  walletUsd: 500,
+  totalInvestedUsd: 1200,
+  totalEarnedUsd: 180,
+};
+
+const DEV_MOCK_USER = {
+  uid: DEV_MOCK_PROFILE.uid,
+  email: DEV_MOCK_PROFILE.email,
+  displayName: DEV_MOCK_PROFILE.displayName,
+  photoURL: null,
+} as unknown as FirebaseUser;
+
+const getUserProfileFn = httpsCallable<Record<string, never>, Record<string, unknown>>(
+  functions,
+  "getUserProfile",
+);
+
+function normalizeProfile(data: Record<string, unknown> | null): UserProfile | null {
+  if (!data || typeof data.uid !== "string") return null;
   return {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName,
-    role: role as UserRole,
-    walletUsd: 500,
-    totalInvestedUsd: 4850,
-    totalEarnedUsd: 342,
+    uid: data.uid,
+    email: (data.email as string) ?? "",
+    displayName: (data.fullName as string) || (data.displayName as string) || "",
+    role: (data.role as UserRole) ?? "investor",
+    walletUsd: data.walletUsd as number | undefined,
+    totalInvestedUsd: data.totalInvestedUsd as number | undefined,
+    totalEarnedUsd: data.totalEarnedUsd as number | undefined,
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const devMode = isDevMode();
+  const { role, isReady } = useApp();
+  const [user, setUser] = useState<FirebaseUser | null>(devMode ? DEV_MOCK_USER : null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(
+    devMode ? DEV_MOCK_PROFILE : null,
+  );
+  const [isLoading, setIsLoading] = useState(!devMode);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(SESSION_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as { user: AuthUser; profile: UserProfile };
-          setUser(parsed.user);
-          setUserProfile(parsed.profile);
-        }
-      } catch {
-        // ignore corrupt session
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
+    if (!devMode || !isReady) return;
+    setUser(DEV_MOCK_USER);
+    setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
+    setIsLoading(false);
+  }, [devMode, isReady, role]);
 
-  const signIn = useCallback(async (authUser: AuthUser, role: Role) => {
-    const profile = buildProfile(authUser, role);
-    setUser(authUser);
-    setUserProfile(profile);
-    await AsyncStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify({ user: authUser, profile }),
-    );
-  }, []);
+  const refreshProfile = async () => {
+    if (devMode || !user) return;
+    try {
+      const result = await getUserProfileFn({});
+      setUserProfile(normalizeProfile(result.data ?? null));
+    } catch {
+      setUserProfile(null);
+    }
+  };
+
+  const signInDev = useCallback(async (role: Role) => {
+    if (!devMode) return;
+    setUser(DEV_MOCK_USER);
+    setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
+  }, [devMode]);
 
   const signOut = useCallback(async () => {
-    setUser(null);
-    setUserProfile(null);
-    await AsyncStorage.removeItem(SESSION_KEY);
-  }, []);
+    if (devMode) {
+      setUser(DEV_MOCK_USER);
+      setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
+      return;
+    }
+    await firebaseSignOut(auth);
+  }, [devMode, role]);
+
+  useEffect(() => {
+    if (devMode) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        setIsLoading(false);
+        try {
+          const result = await getUserProfileFn({});
+          setUserProfile(normalizeProfile(result.data ?? null));
+        } catch {
+          setUserProfile(null);
+        }
+      } else {
+        setUser(null);
+        setUserProfile(null);
+        setIsLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, [devMode]);
+
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <AuthContext.Provider
@@ -91,8 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userProfile,
         isLoading,
         isAuthenticated: !!user,
-        signIn,
         signOut,
+        refreshProfile,
+        signInDev,
       }}
     >
       {children}

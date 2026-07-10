@@ -4,13 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { CommanderModal } from "@/components/forms/ActionForms";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { products } from "@/data/mock";
+import { useProducts } from "@/hooks/useProducts";
 import { colors, radii, spacing } from "@/theme";
 
 export function MerchantMarketScreen() {
   const scrollPadding = useTabScrollPadding();
   const [q, setQ] = useState("");
   const [orderProduct, setOrderProduct] = useState<{ name: string; unit: string } | null>(null);
+  const { data: products = [] } = useProducts();
 
   const filtered = useMemo(
     () => products.filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase())),

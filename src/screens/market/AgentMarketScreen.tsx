@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PublierPourAgriculteurModal } from "@/components/forms/ActionForms";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { agentFarmers } from "@/data/mock";
+import { useAgentFarmers } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const STATUS = {
@@ -17,6 +17,7 @@ const STATUS = {
 export function AgentMarketScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: agentFarmers = [] } = useAgentFarmers();
   const [publishFarmerId, setPublishFarmerId] = useState<string | null>(null);
   const sorted = [...agentFarmers].sort(
     (a, b) =>

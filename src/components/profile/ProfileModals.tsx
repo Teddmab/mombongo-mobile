@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
 import {
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { BottomSheetShell } from "@/components/ui/BottomSheetShell";
 import { useApp, type Lang } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { colors, radii, spacing } from "@/theme";
@@ -32,24 +28,10 @@ function SheetModal({
   title: string;
   children: React.ReactNode;
 }) {
-  const insets = useSafeAreaInsets();
-
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
-      >
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={22} color={colors.gray[600]} />
-          </Pressable>
-        </View>
-        {children}
-      </KeyboardAvoidingView>
-    </Modal>
+    <BottomSheetShell visible={visible} onClose={onClose} title={title} scroll={false}>
+      {children}
+    </BottomSheetShell>
   );
 }
 
@@ -171,65 +153,7 @@ export function WalletActionModal({
   );
 }
 
-export function SubscriptionModal({
-  visible,
-  onClose,
-  planName,
-  price,
-  period,
-  description,
-  features,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  planName: string;
-  price: number;
-  period: string;
-  description: string;
-  features: string[];
-}) {
-  return (
-    <SheetModal visible={visible} onClose={onClose} title="Abonnement">
-      <View style={styles.planCard}>
-        <Text style={styles.planName}>
-          {planName} · ${price}/{period}
-        </Text>
-        <Text style={styles.planDesc}>{description}</Text>
-        {features.map((f) => (
-          <Text key={f} style={styles.planFeature}>
-            ✓ {f}
-          </Text>
-        ))}
-      </View>
-      <Pressable onPress={onClose} style={styles.saveBtn}>
-        <Text style={styles.saveText}>Fermer</Text>
-      </Pressable>
-    </SheetModal>
-  );
-}
-
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radii["3xl"],
-    borderTopRightRadius: radii["3xl"],
-    paddingHorizontal: spacing["2xl"],
-    paddingTop: spacing.lg,
-    maxHeight: "90%",
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.gray[900],
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-  },
   field: { marginBottom: spacing.md },
   label: {
     fontSize: 11,
@@ -297,13 +221,4 @@ const styles = StyleSheet.create({
     borderColor: colors.green[200],
   },
   quickText: { fontSize: 12, fontWeight: "700", color: colors.green[700] },
-  planCard: {
-    backgroundColor: colors.gray[900],
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  planName: { fontSize: 15, fontWeight: "700", color: colors.white },
-  planDesc: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 4 },
-  planFeature: { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 6 },
 });

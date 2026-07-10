@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BourseTickerBar } from "@/components/bourse/BourseTickerBar";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { bourseOpportunities, type BourseOpportunity } from "@/data/mock";
+import { useBourseOpportunities, type BourseOpportunity } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const TYPE_ICON: Record<
@@ -18,6 +18,7 @@ const TYPE_ICON: Record<
 };
 
 export function InvestorBourseScreen() {
+  const { data: bourseOpportunities = [] } = useBourseOpportunities();
   const { t } = useTranslation();
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();

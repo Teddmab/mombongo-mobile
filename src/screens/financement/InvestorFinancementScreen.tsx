@@ -3,12 +3,13 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { farmers } from "@/data/mock";
+import { useFarmers } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export function InvestorFinancementContent({ bottomInset }: { bottomInset: number }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const { data: farmers = [] } = useFarmers();
 
   return (
     <ScrollView

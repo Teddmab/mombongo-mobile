@@ -1,9 +1,6 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,37 +10,22 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { PaymentModal } from "@/components/PaymentModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { isDevMode } from "@/lib/dev";
-import { farmers, products } from "@/data/mock";
+import { useFarmers } from "@/hooks/useLocalData";
+import { useProducts } from "@/hooks/useProducts";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { data: farmers = [] } = useFarmers();
+  const { data: products = [] } = useProducts();
   const f = farmers.find((x) => x.id === farmerId) ?? farmers[0];
   const pct = Math.round((f.raised / f.needed) * 100);
   const farmerProducts = products.filter((p) => p.farmer === f.name);
   const [payOpen, setPayOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const handleSupport = async () => {
-    setLoading(true);
-    if (isDevMode()) {
-      await new Promise((r) => setTimeout(r, 1000));
-      setDone(true);
-    } else {
-      Alert.alert("Mombongo", "Connexion Firebase requise.");
-    }
-    setLoading(false);
-  };
-
-  const closeModal = () => {
-    setPayOpen(false);
-    setTimeout(() => setDone(false), 300);
-  };
 
   return (
     <View style={styles.root} testID="farmer-detail-screen">
@@ -129,41 +111,16 @@ export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
         </Pressable>
       </View>
 
-      <Modal visible={payOpen} animationType="slide" transparent onRequestClose={closeModal}>
-        <Pressable style={styles.modalBackdrop} onPress={closeModal} />
-        <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          {done ? (
-            <View style={styles.modalCenter}>
-              <Ionicons name="checkmark-circle" size={48} color={colors.green[700]} />
-              <Text style={styles.modalDoneTitle}>Merci pour votre soutien !</Text>
-              <Text style={styles.modalDoneSub}>Votre contribution aide {f.name}.</Text>
-              <Pressable onPress={closeModal} style={styles.supportBtn}>
-                <Text style={styles.supportBtnText}>Fermer</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.modalTitle}>Soutien agriculteur</Text>
-              <Text style={styles.modalSub}>{f.name}</Text>
-              <Text style={styles.modalHint}>À partir de $50 · fonds sécurisés par Mombongo</Text>
-              <Pressable
-                onPress={handleSupport}
-                disabled={loading}
-                style={[styles.supportBtn, loading && { opacity: 0.6 }]}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.white} />
-                ) : (
-                  <Text style={styles.supportBtnText}>Confirmer $100</Text>
-                )}
-              </Pressable>
-              <Pressable onPress={closeModal}>
-                <Text style={styles.modalCancel}>Annuler</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </Modal>
+      <PaymentModal
+        visible={payOpen}
+        onClose={() => setPayOpen(false)}
+        type="support"
+        title="Soutien agriculteur"
+        subtitle={f.name}
+        currency="USD"
+        minAmount={50}
+        onSuccess={() => setPayOpen(false)}
+      />
     </View>
   );
 }
@@ -287,22 +244,4 @@ const styles = StyleSheet.create({
     ...shadows.elevated,
   },
   supportBtnText: { fontSize: 14, fontWeight: "700", color: colors.white },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  modalSheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radii["3xl"],
-    borderTopRightRadius: radii["3xl"],
-    padding: spacing.xl,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: colors.gray[900] },
-  modalSub: { fontSize: 14, color: colors.gray[600], marginTop: 4 },
-  modalHint: { fontSize: 12, color: colors.gray[500], marginTop: spacing.lg },
-  modalCancel: { textAlign: "center", marginTop: spacing.md, fontSize: 12, color: colors.gray[400] },
-  modalCenter: { alignItems: "center", paddingVertical: spacing.lg, gap: spacing.sm },
-  modalDoneTitle: { fontSize: 18, fontWeight: "700", color: colors.gray[900] },
-  modalDoneSub: { fontSize: 13, color: colors.gray[500], textAlign: "center" },
 });

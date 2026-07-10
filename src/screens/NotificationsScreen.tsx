@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { notifications as initialNotifs, type Notification } from "@/data/mock";
+import { useNotifications, type Notification } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const KIND_META: Record<
@@ -26,7 +26,12 @@ const KIND_META: Record<
 
 export function NotificationsScreen() {
   const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<Notification[]>(initialNotifs);
+  const { data: initialNotifs = [] } = useNotifications();
+  const [items, setItems] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    setItems(initialNotifs);
+  }, [initialNotifs]);
   const unread = items.filter((n) => !n.read).length;
 
   const grouped = useMemo(() => {

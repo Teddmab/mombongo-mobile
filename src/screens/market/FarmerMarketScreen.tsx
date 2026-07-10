@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PublierProduitModal } from "@/components/forms/ActionForms";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { bourseTicker, myListings } from "@/data/mock";
+import { useBourseTicker, useMyListings } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const STATUS = {
@@ -16,6 +16,8 @@ const STATUS = {
 
 export function FarmerMarketScreen() {
   const scrollPadding = useTabScrollPadding();
+  const { data: myListings = [] } = useMyListings();
+  const { data: bourseTicker = [] } = useBourseTicker();
   const [tab, setTab] = useState<"annonces" | "prix">("annonces");
   const [publishOpen, setPublishOpen] = useState(false);
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -11,16 +11,15 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import {
-  EditProfileModal,
-  SubscriptionModal,
-  WalletActionModal,
-} from "@/components/profile/ProfileModals";
+import { EditProfileModal } from "@/components/profile/ProfileModals";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
+import { DepositModal, WithdrawModal } from "@/components/wallet/WalletModals";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useApp, type Role } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
-import { transactions, type Transaction } from "@/data/mock";
+import { useTransactions, type Transaction } from "@/hooks/useTransactions";
+import { useQueryClient } from "@tanstack/react-query";
 import { colors, radii, spacing } from "@/theme";
 
 interface RolePlan {
@@ -181,7 +180,9 @@ function TxRow({ tx }: { tx: Transaction }) {
 export function ProfileScreen() {
   const { role } = useApp();
   const { t } = useTranslation();
-  const { user, userProfile, signOut } = useAuth();
+  const { user, userProfile, signOut, refreshProfile } = useAuth();
+  const { data: transactions = [] } = useTransactions();
+  const qc = useQueryClient();
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
 
@@ -192,11 +193,19 @@ export function ProfileScreen() {
   const currentPlan = ROLE_PLANS[role] ?? ROLE_PLANS.investor;
   const walletCfg = ROLE_WALLET[role] ?? ROLE_WALLET.investor;
 
-  const [balance, setBalance] = useState(walletCfg.initialBalance);
+  const [balance, setBalance] = useState(
+    userProfile?.walletUsd ?? walletCfg.initialBalance,
+  );
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    if (userProfile?.walletUsd != null) {
+      setBalance(userProfile.walletUsd);
+    }
+  }, [userProfile?.walletUsd]);
 
   const handleLogout = async () => {
     await signOut();
@@ -344,28 +353,30 @@ export function ProfileScreen() {
       </ScrollView>
 
       <EditProfileModal visible={editOpen} onClose={() => setEditOpen(false)} />
-      <WalletActionModal
+      <DepositModal
         visible={depositOpen}
         onClose={() => setDepositOpen(false)}
-        mode="deposit"
         currentBalance={balance}
-        onSuccess={(a) => setBalance((b) => b + a)}
+        onSuccess={(a) => {
+          setBalance((b) => b + a);
+          void refreshProfile();
+          void qc.invalidateQueries({ queryKey: ["transactions"] });
+        }}
       />
-      <WalletActionModal
+      <WithdrawModal
         visible={withdrawOpen}
         onClose={() => setWithdrawOpen(false)}
-        mode="withdraw"
         currentBalance={balance}
-        onSuccess={(a) => setBalance((b) => b - a)}
+        onSuccess={(a) => {
+          setBalance((b) => b - a);
+          void refreshProfile();
+          void qc.invalidateQueries({ queryKey: ["transactions"] });
+        }}
       />
       <SubscriptionModal
         visible={subOpen}
         onClose={() => setSubOpen(false)}
-        planName={currentPlan.name}
-        price={currentPlan.price}
-        period={currentPlan.period}
-        description={currentPlan.description}
-        features={currentPlan.features}
+        currentPlanId={currentPlan.id}
       />
     </TabScreen>
   );

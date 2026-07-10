@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { agentFarmers } from "@/data/mock";
+import { useAgentFarmers, type BourseOpportunity } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 function FormModal({
@@ -460,6 +460,7 @@ export function PublierPourAgriculteurModal({
   onClose: () => void;
   defaultFarmerId?: string;
 }) {
+  const { data: agentFarmers = [] } = useAgentFarmers();
   const [farmerId, setFarmerId] = useState(defaultFarmerId ?? agentFarmers[0]?.id ?? "");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("agriculture");
@@ -483,7 +484,7 @@ export function PublierPourAgriculteurModal({
     setRegion("");
     setHarvestDate("");
     setLoading(false);
-  }, [visible, defaultFarmerId]);
+  }, [visible, defaultFarmerId, agentFarmers]);
 
   const submit = async () => {
     if (!farmerId || !name || !qty || !price) return;
@@ -603,6 +604,279 @@ export function PublierPourAgriculteurModal({
     </FormModal>
   );
 }
+
+/* ─── Réserver un lot Bourse (Commerçant) ───────────────────────────────────── */
+
+export function ReserverLotModal({
+  visible,
+  onClose,
+  opportunity,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  opportunity: BourseOpportunity | null;
+}) {
+  const [parts, setParts] = useState("1");
+  const [payment, setPayment] = useState("mobile-money");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setParts("1");
+    setPayment("mobile-money");
+    setLoading(false);
+  }, [visible]);
+
+  const submit = async () => {
+    if (!opportunity) return;
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 800));
+    setLoading(false);
+    Alert.alert("Mombongo", `Lot réservé — ${opportunity.title}`);
+    onClose();
+  };
+
+  if (!opportunity) return null;
+
+  return (
+    <FormModal visible={visible} onClose={onClose} title="Réserver ce lot">
+      <View style={lotStyles.summary}>
+        <Text style={lotStyles.summaryTitle}>{opportunity.title}</Text>
+        <Text style={lotStyles.summaryMeta}>
+          {opportunity.origin}
+          {opportunity.destination ? ` → ${opportunity.destination}` : ""}
+        </Text>
+        <View style={lotStyles.summaryGrid}>
+          {[
+            { l: "Volume", v: opportunity.volume },
+            { l: "Prix lot", v: opportunity.price },
+            { l: "Durée", v: opportunity.duration },
+            { l: "Marge", v: `${opportunity.commission}%` },
+          ].map((s) => (
+            <View key={s.l} style={lotStyles.summaryCell}>
+              <Text style={lotStyles.summaryCellLabel}>{s.l}</Text>
+              <Text style={lotStyles.summaryCellValue}>{s.v}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <Field label={`Nombre de parts (max ${opportunity.spotsLeft})`}>
+        <TextInput
+          value={parts}
+          onChangeText={setParts}
+          keyboardType="number-pad"
+          placeholder="1"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <Field label="Mode de paiement">
+        <ChipRow options={PAYMENTS} value={payment} onChange={setPayment} />
+      </Field>
+      <SubmitBtn
+        label="Confirmer la réservation"
+        icon="cube-outline"
+        color="purple"
+        onPress={submit}
+        loading={loading}
+      />
+    </FormModal>
+  );
+}
+
+/* ─── Publier un lot Bourse (Commerçant) ───────────────────────────────────── */
+
+const LOT_TYPES = [
+  { id: "transport", label: "Transport", icon: "bus-outline" as const },
+  { id: "stockage", label: "Stockage", icon: "archive-outline" as const },
+  { id: "transformation", label: "Transformation", icon: "construct-outline" as const },
+];
+
+export function PublierLotModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState("transport");
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [volume, setVolume] = useState("");
+  const [price, setPrice] = useState("");
+  const [duration, setDuration] = useState("");
+  const [spots, setSpots] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setTitle("");
+    setType("transport");
+    setOrigin("");
+    setDestination("");
+    setVolume("");
+    setPrice("");
+    setDuration("");
+    setSpots("");
+    setLoading(false);
+  }, [visible]);
+
+  const submit = async () => {
+    if (!title || !origin || !volume || !price) return;
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 800));
+    setLoading(false);
+    Alert.alert("Mombongo", `Lot "${title}" publié sur la Bourse`);
+    onClose();
+  };
+
+  return (
+    <FormModal visible={visible} onClose={onClose} title="Publier un lot à vendre">
+      <Field label="Titre de l'offre">
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Ex : Transport Tomates Matadi → Kinshasa"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <Field label="Type de lot">
+        <View style={lotStyles.typeRow}>
+          {LOT_TYPES.map((t) => (
+            <Pressable
+              key={t.id}
+              onPress={() => setType(t.id)}
+              style={[lotStyles.typeBtn, type === t.id && lotStyles.typeBtnActive]}
+            >
+              <Ionicons
+                name={t.icon}
+                size={16}
+                color={type === t.id ? colors.purple[700] : colors.gray[500]}
+              />
+              <Text style={[lotStyles.typeText, type === t.id && lotStyles.typeTextActive]}>
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Field>
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <Field label="Origine">
+            <TextInput
+              value={origin}
+              onChangeText={setOrigin}
+              placeholder="Matadi, Boma…"
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+        <View style={styles.flex}>
+          <Field label={type === "transport" ? "Destination" : "Capacité / durée"}>
+            <TextInput
+              value={type === "transport" ? destination : duration}
+              onChangeText={type === "transport" ? setDestination : setDuration}
+              placeholder={type === "transport" ? "Kinshasa…" : "30 jours"}
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+      </View>
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <Field label="Volume">
+            <TextInput
+              value={volume}
+              onChangeText={setVolume}
+              placeholder="120 bacs, 500 kg…"
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+        <View style={styles.flex}>
+          <Field label="Prix du lot">
+            <TextInput
+              value={price}
+              onChangeText={setPrice}
+              placeholder="75,000 FC ou $150"
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+      </View>
+      {type === "transport" ? (
+        <Field label="Durée estimée">
+          <TextInput
+            value={duration}
+            onChangeText={setDuration}
+            placeholder="3 jours"
+            placeholderTextColor={colors.gray[400]}
+            style={styles.input}
+          />
+        </Field>
+      ) : null}
+      <Field label="Places disponibles">
+        <TextInput
+          value={spots}
+          onChangeText={setSpots}
+          keyboardType="number-pad"
+          placeholder="8"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <SubmitBtn
+        label="Publier le lot"
+        icon="pricetag-outline"
+        color="purple"
+        onPress={submit}
+        loading={loading}
+        disabled={!title || !origin || !volume || !price}
+      />
+    </FormModal>
+  );
+}
+
+const lotStyles = StyleSheet.create({
+  summary: {
+    backgroundColor: colors.gray[50],
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  summaryTitle: { fontSize: 13, fontWeight: "700", color: colors.gray[900] },
+  summaryMeta: { fontSize: 11, color: colors.gray[500] },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
+  summaryCell: { width: "47%" },
+  summaryCellLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: colors.gray[400],
+    textTransform: "uppercase",
+  },
+  summaryCellValue: { fontSize: 12, fontWeight: "700", color: colors.gray[900], marginTop: 2 },
+  typeRow: { flexDirection: "row", gap: spacing.sm },
+  typeBtn: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    borderColor: colors.gray[200],
+    backgroundColor: colors.white,
+  },
+  typeBtnActive: { borderColor: colors.purple[700], backgroundColor: colors.purple[100] },
+  typeText: { fontSize: 9, fontWeight: "700", color: colors.gray[500], textAlign: "center" },
+  typeTextActive: { color: colors.purple[700] },
+});
 
 const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },

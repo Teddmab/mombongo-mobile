@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
-import { bourseTicker } from "@/data/mock";
+import { useBourseTicker } from "@/hooks/useLocalData";
 import { colors, spacing } from "@/theme";
 
 export function BourseTickerBar() {
+  const { data: bourseTicker = [] } = useBourseTicker();
   const anim = useRef(new Animated.Value(0)).current;
   const [contentWidth, setContentWidth] = useState(0);
   const items = [...bourseTicker, ...bourseTicker];

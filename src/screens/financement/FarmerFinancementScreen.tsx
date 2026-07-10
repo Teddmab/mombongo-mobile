@@ -1,7 +1,7 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { cropTasks } from "@/data/mock";
+import { useCropTasks } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const DISBURSE_HISTORY = [
@@ -19,6 +19,7 @@ const TASK_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export function FarmerFinancementContent({ bottomInset }: { bottomInset: number }) {
+  const { data: cropTasks = [] } = useCropTasks();
   const disbursed = 650;
   const target = 1000;
   const pct = Math.round((disbursed / target) * 100);

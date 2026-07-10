@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,7 +13,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { isDevMode } from "@/lib/dev";
+import { functions } from "@/lib/firebase";
 import { colors, radii, spacing } from "@/theme";
+import { httpsCallable } from "firebase/functions";
+
+const createInvestmentFn = httpsCallable<
+  { productId: string; amountUsd: number },
+  { investmentId: string; txId: string }
+>(functions, "createInvestment");
 
 interface ProductSummary {
   id: string;
@@ -40,11 +46,13 @@ export function InvestModal({
   onClose,
   product,
   walletBalance,
+  onSuccess,
 }: {
   visible: boolean;
   onClose: () => void;
   product: ProductSummary;
   walletBalance: number;
+  onSuccess?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<"amount" | "summary" | "success" | "error">("amount");
@@ -75,11 +83,14 @@ export function InvestModal({
         await new Promise((r) => setTimeout(r, 800));
         setInvestmentId("mock-inv-" + Date.now());
       } else {
-        Alert.alert("Mombongo", "Connexion Firebase requise pour investir.");
-        setLoading(false);
-        return;
+        const { data } = await createInvestmentFn({
+          productId: product.id,
+          amountUsd: amount,
+        });
+        setInvestmentId(data.investmentId);
       }
       setStep("success");
+      onSuccess?.();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Erreur lors de l'investissement.");
       setStep("error");

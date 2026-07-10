@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { products, type Category, type Product } from "@/data/mock";
+import { type Category, type Product, useProducts } from "@/hooks/useProducts";
 import { colors, radii, spacing } from "@/theme";
 
 type Filter = "all" | Category | "bio" | "café" | "pêche";
@@ -57,9 +57,9 @@ export function InvestorMarketScreen() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Filter>("all");
   const [shown, setShown] = useState(6);
-  const isLoading = false;
+  const { data: products = [], isLoading } = useProducts();
 
-  const filtered = useMemo(() => filterProducts(products, q, cat), [q, cat]);
+  const filtered = useMemo(() => filterProducts(products, q, cat), [products, q, cat]);
 
   return (
     <TabScreen>

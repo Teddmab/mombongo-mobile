@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -9,11 +10,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { InvestModal } from "@/components/market/InvestModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
-import { products, type Product } from "@/data/mock";
+import { useProduct } from "@/hooks/useProduct";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 function clampAmount(value: number, min: number, max: number) {
@@ -51,20 +53,40 @@ function StatCard({
 
 export function ProductDetailScreen({ productId }: { productId?: string }) {
   const insets = useSafeAreaInsets();
-  const { userProfile } = useAuth();
-  const product = products.find((p) => p.id === productId) ?? products[0];
-  const walletBalance = userProfile?.walletUsd ?? 2450;
-  const maxAmount = product.minInvest * 10;
+  const qc = useQueryClient();
+  const { userProfile, refreshProfile } = useAuth();
+  const { data: product, isLoading } = useProduct(productId);
+  const walletBalance = userProfile?.walletUsd ?? 0;
 
-  const [amount, setAmount] = useState(product.minInvest);
+  const [amount, setAmount] = useState(100);
   const [investOpen, setInvestOpen] = useState(false);
 
-  const expectedReturn = useMemo(() => Math.round(amount * (1 + product.roi / 100)), [amount, product.roi]);
+  useEffect(() => {
+    if (product) setAmount(product.minInvest);
+  }, [product?.id, product?.minInvest]);
+
+  const minInvest = product?.minInvest ?? 100;
+  const maxAmount = minInvest * 10;
+  const roi = product?.roi ?? 0;
+
+  const expectedReturn = useMemo(
+    () => Math.round(amount * (1 + roi / 100)),
+    [amount, roi],
+  );
   const profit = expectedReturn - amount;
 
   const adjustAmount = (delta: number) => {
-    setAmount((prev) => clampAmount(prev + delta, product.minInvest, maxAmount));
+    setAmount((prev) => clampAmount(prev + delta, minInvest, maxAmount));
   };
+
+  if (isLoading || !product) {
+    return (
+      <View style={styles.root} testID="product-detail-screen">
+        <StackHeader title="Marché" />
+        <ActivityIndicator color={colors.green[700]} style={{ marginTop: 48 }} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root} testID="product-detail-screen">
@@ -170,6 +192,11 @@ export function ProductDetailScreen({ productId }: { productId?: string }) {
           duration: product.duration,
         }}
         walletBalance={walletBalance}
+        onSuccess={() => {
+          void refreshProfile();
+          void qc.invalidateQueries({ queryKey: ["investments"] });
+          void qc.invalidateQueries({ queryKey: ["transactions"] });
+        }}
       />
     </View>
   );

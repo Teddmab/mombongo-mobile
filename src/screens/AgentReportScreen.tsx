@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,7 @@ import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
-import { agentFarmers } from "@/data/mock";
+import { useAgentFarmers } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const CONDITIONS = [
@@ -174,9 +174,10 @@ function SuccessView({
 function AgentReportForm() {
   const router = useRouter();
   const { userProfile } = useAuth();
+  const { data: agentFarmers = [] } = useAgentFarmers();
   const agentName = userProfile?.displayName || "Patrick Kadima";
 
-  const [farmerId, setFarmerId] = useState(agentFarmers[0]?.id ?? "");
+  const [farmerId, setFarmerId] = useState("");
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState(3);
   const [stage, setStage] = useState("Floraison");
@@ -190,6 +191,10 @@ function AgentReportForm() {
   const [submitted, setSubmitted] = useState(false);
 
   const selectedFarmer = agentFarmers.find((f) => f.id === farmerId);
+
+  useEffect(() => {
+    if (!farmerId && agentFarmers[0]?.id) setFarmerId(agentFarmers[0].id);
+  }, [agentFarmers, farmerId]);
 
   const submit = async () => {
     if (!farmerId || !recommendations.trim()) return;

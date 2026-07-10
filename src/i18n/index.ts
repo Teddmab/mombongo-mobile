@@ -49,6 +49,9 @@ const resources = {
           invalidEmail: "Adresse email invalide.",
           network: "Erreur réseau. Vérifiez votre connexion.",
           tooManyRequests: "Trop de tentatives. Réessayez dans quelques minutes.",
+          operationNotAllowed:
+            "Connexion par email désactivée. Activez « Email/Mot de passe » dans Firebase Console → Authentication.",
+          service: "Service indisponible. Réessayez ou contactez le support.",
         },
       },
       common: {
@@ -262,6 +265,9 @@ const resources = {
           invalidEmail: "Invalid email address.",
           network: "Network error. Check your connection.",
           tooManyRequests: "Too many attempts. Try again in a few minutes.",
+          operationNotAllowed:
+            "Email sign-in is disabled. Enable Email/Password in Firebase Console → Authentication.",
+          service: "Service unavailable. Try again or contact support.",
         },
       },
       common: {
@@ -475,6 +481,9 @@ const resources = {
           invalidEmail: "Email ezali malamu te.",
           network: "Problème ya réseau. Tala connexion na yo.",
           tooManyRequests: "Mokokota mingi. Yaka lisusu nsima ya miniti.",
+          operationNotAllowed:
+            "Kokota na email ezipami. Activer « Email/Mot de passe » na Firebase Console.",
+          service: "Service ezali te. Zongisa lisusu to benga support.",
         },
       },
       common: {

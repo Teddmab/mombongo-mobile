@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
-import { bourseTicker, merchantOrders } from "@/data/mock";
+import { useBourseTicker, useMerchantOrders } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const STATUS = {
@@ -24,6 +24,8 @@ const QUICK = [
 export function MerchantHomeScreen() {
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: merchantOrders = [] } = useMerchantOrders();
+  const { data: bourseTicker = [] } = useBourseTicker();
   const { userProfile } = useAuth();
   const firstName = (userProfile?.displayName || "Commerçant").split(" ")[0];
   const active = merchantOrders.filter((o) => o.status === "en cours" || o.status === "en attente");

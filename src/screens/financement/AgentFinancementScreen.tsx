@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { agentFarmers, agentReports, type AgentFarmerCard } from "@/data/mock";
+import { useAgentFarmers, useAgentReports, type AgentFarmerCard } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 const STATUS_CFG = {
@@ -14,6 +14,8 @@ const STATUS_CFG = {
 
 export function AgentFinancementContent({ bottomInset }: { bottomInset: number }) {
   const router = useRouter();
+  const { data: agentFarmers = [] } = useAgentFarmers();
+  const { data: agentReports = [] } = useAgentReports();
   const [q, setQ] = useState("");
   const urgentCount = agentFarmers.filter((f) => f.status === "urgent").length;
 
@@ -24,7 +26,7 @@ export function AgentFinancementContent({ bottomInset }: { bottomInset: number }
         (a, b) =>
           ({ urgent: 0, attention: 1, ok: 2 }[a.status] - { urgent: 0, attention: 1, ok: 2 }[b.status])
       );
-  }, [q]);
+  }, [q, agentFarmers]);
 
   return (
     <ScrollView

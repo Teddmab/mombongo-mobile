@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
+import { CertificatePreviewModal } from "@/components/academia/CertificatePreviewModal";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { courses, type Course } from "@/data/mock";
+import { useCourses, type Course } from "@/hooks/useLocalData";
 import { colors, radii, spacing } from "@/theme";
 
 function levelStyle(level: Course["level"]) {
@@ -67,6 +70,11 @@ function CourseRow({
         )}
         {c.progress === 100 ? (
           <Text style={styles.doneText}>✓ {t("academia.courseCompleted")}</Text>
+        ) : c.progress === 0 ? (
+          <View style={styles.startBadge}>
+            <Ionicons name="play" size={10} color={colors.gray[500]} />
+            <Text style={styles.startText}>{t("academia.courseStart")}</Text>
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -102,6 +110,9 @@ export function AcademiaScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
+  const { data: courses = [] } = useCourses();
+  const [subOpen, setSubOpen] = useState(false);
+  const [certPreview, setCertPreview] = useState<Course | null>(null);
 
   const inProgress = courses.filter((c) => c.progress > 0 && c.progress < 100);
   const done = courses.filter((c) => c.progress === 100);
@@ -131,7 +142,7 @@ export function AcademiaScreen() {
         <View style={styles.premiumBanner}>
           <Ionicons name="sparkles" size={20} color={colors.amber[900]} />
           <Text style={styles.premiumTextBanner}>Cours Premium disponibles</Text>
-          <Pressable style={styles.premiumBtn}>
+          <Pressable onPress={() => setSubOpen(true)} style={styles.premiumBtn}>
             <Text style={styles.premiumBtnText}>Voir</Text>
           </Pressable>
         </View>
@@ -141,7 +152,7 @@ export function AcademiaScreen() {
             <Text style={styles.sectionLabel}>Mes certificats</Text>
             <View style={styles.list}>
               {done.map((c) => (
-                <CertRow key={c.id} course={c} onPress={() => {}} />
+                <CertRow key={c.id} course={c} onPress={() => setCertPreview(c)} />
               ))}
             </View>
           </>
@@ -175,6 +186,15 @@ export function AcademiaScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <SubscriptionModal visible={subOpen} onClose={() => setSubOpen(false)} />
+      {certPreview ? (
+        <CertificatePreviewModal
+          course={certPreview}
+          visible={!!certPreview}
+          onClose={() => setCertPreview(null)}
+        />
+      ) : null}
     </TabScreen>
   );
 }
@@ -327,6 +347,8 @@ const styles = StyleSheet.create({
   levelBadge: { borderRadius: radii.full, paddingHorizontal: 8, paddingVertical: 2 },
   levelText: { fontSize: 9, fontWeight: "800" },
   doneText: { fontSize: 9, fontWeight: "700", color: colors.green[700] },
+  startBadge: { flexDirection: "row", alignItems: "center", gap: 2 },
+  startText: { fontSize: 9, fontWeight: "700", color: colors.gray[500] },
   certRow: {
     flexDirection: "row",
     alignItems: "center",

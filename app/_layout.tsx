@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
 import { useFonts } from "expo-font";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
@@ -13,6 +14,8 @@ import { NotoSans_400Regular, NotoSans_500Medium } from "@expo-google-fonts/noto
 import { Providers } from "@/context/Providers";
 import { LoadingScreen } from "@/screens/LoadingScreen";
 import { useApp } from "@/context/AppContext";
+
+WebBrowser.maybeCompleteAuthSession();
 
 function RootNavigator() {
   const { isReady } = useApp();

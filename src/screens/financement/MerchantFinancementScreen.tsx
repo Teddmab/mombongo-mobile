@@ -13,11 +13,12 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { farmers, type Farmer } from "@/data/mock";
+import { useFarmers, type Farmer } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export function MerchantFinancementContent({ bottomInset }: { bottomInset: number }) {
   const router = useRouter();
+  const { data: farmers = [] } = useFarmers();
   const [q, setQ] = useState("");
   const [preAchat, setPreAchat] = useState<Farmer | null>(null);
 
@@ -29,7 +30,7 @@ export function MerchantFinancementContent({ bottomInset }: { bottomInset: numbe
           f.name.toLowerCase().includes(q.toLowerCase()) ||
           f.crops.some((c) => c.toLowerCase().includes(q.toLowerCase()))
       ),
-    [q]
+    [q, farmers]
   );
 
   return (
