@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Mombongo",
-    "slug": "mombongo-mobile",
+    "slug": "mombongo",
+    "owner": "afrotouch-ou",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "mombongo",
@@ -23,15 +24,25 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.mombongo.mobile"
+      "package": "com.mombongo.mobile",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-font"],
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1182d1e2-14eb-4086-9a6e-c1f08291cf86"
+      }
     }
   }
 }
