@@ -13,19 +13,30 @@ import { Ionicons } from "@expo/vector-icons";
 import { PaymentModal } from "@/components/PaymentModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { useFarmers } from "@/hooks/useLocalData";
+import { useFarmer } from "@/hooks/useFinancing";
 import { useProducts } from "@/hooks/useProducts";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data: farmers = [] } = useFarmers();
+  const { data: f, isLoading } = useFarmer(farmerId);
   const { data: products = [] } = useProducts();
-  const f = farmers.find((x) => x.id === farmerId) ?? farmers[0];
-  const pct = Math.round((f.raised / f.needed) * 100);
-  const farmerProducts = products.filter((p) => p.farmer === f.name);
   const [payOpen, setPayOpen] = useState(false);
+
+  if (isLoading || !f) {
+    return (
+      <View style={styles.root} testID="farmer-detail-screen">
+        <StackHeader title="Financement" />
+        <Text style={{ textAlign: "center", marginTop: 48, color: colors.gray[500] }}>
+          {isLoading ? "Chargement…" : "Agriculteur introuvable"}
+        </Text>
+      </View>
+    );
+  }
+
+  const pct = f.needed > 0 ? Math.round((f.raised / f.needed) * 100) : 0;
+  const farmerProducts = products.filter((p) => p.farmer === f.name);
 
   return (
     <View style={styles.root} testID="farmer-detail-screen">

@@ -11,7 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { PaymentModal } from "@/components/PaymentModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { useBourseOpportunities, type BourseOpportunity } from "@/hooks/useLocalData";
+import { useBourseOpportunity } from "@/hooks/useBourse";
+import type { BourseOpportunity } from "@/hooks/useBourse";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const TYPE_ICON: Record<
@@ -25,8 +26,7 @@ const TYPE_ICON: Record<
 
 export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }) {
   const insets = useSafeAreaInsets();
-  const { data: bourseOpportunities = [] } = useBourseOpportunities();
-  const opp = bourseOpportunities.find((b) => b.id === opportunityId) ?? bourseOpportunities[0];
+  const { data: opp, isLoading } = useBourseOpportunity(opportunityId);
 
   const [stake, setStake] = useState(50000);
   const [payOpen, setPayOpen] = useState(false);
@@ -41,6 +41,17 @@ export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }
   const adjustStake = (delta: number) => {
     setStake((prev) => Math.min(500000, Math.max(10000, prev + delta)));
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.root}>
+        <StackHeader title="Bourse" />
+        <Text style={{ textAlign: "center", marginTop: 48, color: colors.gray[500] }}>
+          Chargement…
+        </Text>
+      </View>
+    );
+  }
 
   if (!opp) {
     return (

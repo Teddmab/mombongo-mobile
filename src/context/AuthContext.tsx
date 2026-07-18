@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   type User as FirebaseUser,
   onAuthStateChanged,
@@ -71,23 +71,15 @@ function normalizeProfile(data: Record<string, unknown> | null): UserProfile | n
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const devMode = isDevMode();
-  const { role, isReady } = useApp();
-  const [user, setUser] = useState<FirebaseUser | null>(devMode ? DEV_MOCK_USER : null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(
-    devMode ? DEV_MOCK_PROFILE : null,
-  );
-  const [isLoading, setIsLoading] = useState(!devMode);
-
-  useEffect(() => {
-    if (!devMode || !isReady) return;
-    setUser(DEV_MOCK_USER);
-    setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
-    setIsLoading(false);
-  }, [devMode, isReady, role]);
+  const { role } = useApp();
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  /** Session mock locale (email en DEV) — évite l’auto-login au démarrage */
+  const devSessionRef = useRef(false);
 
   const refreshProfile = async () => {
-    if (devMode || !user) return;
+    if (!user || user.uid.startsWith("dev-")) return;
     try {
       const result = await getUserProfileFn({});
       setUserProfile(normalizeProfile(result.data ?? null));
@@ -96,43 +88,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signInDev = useCallback(async (role: Role) => {
-    if (!devMode) return;
+  const signInDev = useCallback(async (nextRole: Role) => {
+    if (!isDevMode()) return;
+    devSessionRef.current = true;
     setUser(DEV_MOCK_USER);
-    setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
-  }, [devMode]);
+    setUserProfile({ ...DEV_MOCK_PROFILE, role: nextRole as UserRole });
+  }, []);
 
   const signOut = useCallback(async () => {
-    if (devMode) {
-      setUser(DEV_MOCK_USER);
-      setUserProfile({ ...DEV_MOCK_PROFILE, role: role as UserRole });
-      return;
+    devSessionRef.current = false;
+    setUser(null);
+    setUserProfile(null);
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      // ignore si pas de session Firebase
     }
-    await firebaseSignOut(auth);
-  }, [devMode, role]);
+  }, []);
 
+  // Toujours écouter Firebase (Google Sign-In réel même si DEV_MODE pour les données)
   useEffect(() => {
-    if (devMode) return;
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        devSessionRef.current = false;
         setUser(firebaseUser);
         setIsLoading(false);
         try {
           const result = await getUserProfileFn({});
           setUserProfile(normalizeProfile(result.data ?? null));
         } catch {
-          setUserProfile(null);
+          setUserProfile({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email ?? "",
+            displayName: firebaseUser.displayName ?? "",
+            role: role as UserRole,
+          });
         }
-      } else {
+        return;
+      }
+
+      if (!devSessionRef.current) {
         setUser(null);
         setUserProfile(null);
-        setIsLoading(false);
       }
+      setIsLoading(false);
     });
 
     return unsubscribe;
-  }, [devMode]);
+  }, [role]);
 
   if (isLoading) return <LoadingScreen />;
 

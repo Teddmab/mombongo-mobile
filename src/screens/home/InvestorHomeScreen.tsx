@@ -6,7 +6,7 @@ import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeaturedProducts, type Product } from "@/hooks/useProducts";
-import { useInvestments } from "@/hooks/useInvestments";
+import { useInvestments, usePortfolioStats } from "@/hooks/useInvestments";
 import { useActivity } from "@/hooks/useLocalData";
 import { formatUsd } from "@/lib/utils";
 import { colors, radii, shadows, spacing } from "@/theme";
@@ -38,9 +38,10 @@ export function InvestorHomeScreen() {
   const { userProfile } = useAuth();
   const { data: featured = [] } = useFeaturedProducts();
   const { data: investments = [] } = useInvestments();
+  const { totalUsd, estimatedReturnUsd, activeCount } = usePortfolioStats();
   const { data: activity = [] } = useActivity();
-  const totalInvested = formatUsd(userProfile?.totalInvestedUsd ?? 4850);
-  const totalEarned = formatUsd(userProfile?.totalEarnedUsd ?? 342);
+  const totalInvested = formatUsd(userProfile?.totalInvestedUsd ?? totalUsd);
+  const totalEarned = formatUsd(userProfile?.totalEarnedUsd ?? estimatedReturnUsd);
 
   return (
     <TabScreen>
@@ -49,16 +50,19 @@ export function InvestorHomeScreen() {
         showsVerticalScrollIndicator={false}
         testID="home-screen"
       >
-      <View style={[styles.portfolioCard, shadows.elevated]}>
+      <Pressable
+        style={[styles.portfolioCard, shadows.elevated]}
+        onPress={() => router.push("/portfolio" as never)}
+      >
         <Text style={styles.portfolioLabel}>{t("home.portfolio")}</Text>
         <Text style={styles.portfolioValue}>{totalInvested}</Text>
         <Text style={styles.portfolioDelta}>
-          ↑ +{totalEarned} {t("home.monthChange")} · +7.6% {t("home.avgRoi")}
+          ↑ +{totalEarned} {t("home.estimatedReturn")}
         </Text>
         <View style={styles.divider} />
         <View style={styles.statsRow}>
           {[
-            { l: t("home.invests"), v: "3" },
+            { l: t("home.invests"), v: String(activeCount) },
             { l: t("home.gains"), v: totalEarned },
             { l: t("home.nextReturn"), v: `12 ${t("home.days")}` },
           ].map((s) => (
@@ -68,7 +72,7 @@ export function InvestorHomeScreen() {
             </View>
           ))}
         </View>
-      </View>
+      </Pressable>
 
       <View style={styles.quickGrid}>
         {QUICK.map((q) => (

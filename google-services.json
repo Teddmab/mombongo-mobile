@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "471948196882",
+    "project_id": "mombongo-dev",
+    "storage_bucket": "mombongo-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471948196882:android:bbfa015aea5f59a0c4accb",
+        "android_client_info": {
+          "package_name": "com.mombongo.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "471948196882-2snpp3geq096lmbtrdtk23g6987s9ljo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mombongo.mobile",
+            "certificate_hash": "fabe7102e3736cc63ccdfa0c25f9b67b0fc54d39"
+          }
+        },
+        {
+          "client_id": "471948196882-iot433nbfg70ctq1efahg13ajgbbjcfq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASnu_TuLDrTEwPxOwXv_6V99vk7HPN4z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "471948196882-iot433nbfg70ctq1efahg13ajgbbjcfq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

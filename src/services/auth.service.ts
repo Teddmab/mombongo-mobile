@@ -94,23 +94,20 @@ class AuthService {
   }
 
   async signInWithGoogleIdToken(idToken: string, role: UserRole): Promise<FirebaseUser> {
-    if (isDevMode()) {
-      return {
-        uid: "dev-google-001",
-        email: "google@mombongo.cd",
-        displayName: "Google User",
-      } as unknown as FirebaseUser;
-    }
     try {
       const credential = GoogleAuthProvider.credential(idToken);
       const { user } = await signInWithCredential(auth, credential);
-      await httpsCallable(functions, "createUserProfile")({
-        fullName: user.displayName ?? "",
-        email: user.email ?? "",
-        role,
-        preferredLanguage: (i18n.language as "fr" | "en" | "ln") ?? "fr",
-        avatarUrl: user.photoURL,
-      });
+      try {
+        await httpsCallable(functions, "createUserProfile")({
+          fullName: user.displayName ?? "",
+          email: user.email ?? "",
+          role,
+          preferredLanguage: (i18n.language as "fr" | "en" | "ln") ?? "fr",
+          avatarUrl: user.photoURL,
+        });
+      } catch {
+        // Profil déjà existant — OK, getUserProfile prendra le relais
+      }
       return user;
     } catch (e) {
       throw toAuthError(e);

@@ -22,3 +22,12 @@ export function useInvestments() {
     staleTime: 60_000,
   });
 }
+
+export function usePortfolioStats() {
+  const { data: investments = [], isLoading } = useInvestments();
+  const usdItems = investments.filter((i) => i.currency === "USD");
+  const totalUsd = usdItems.reduce((acc, i) => acc + i.amount, 0);
+  const estimatedReturnUsd = usdItems.reduce((acc, i) => acc + (i.amount * i.roi) / 100, 0);
+  const activeCount = investments.length;
+  return { totalUsd, estimatedReturnUsd, activeCount, isLoading };
+}

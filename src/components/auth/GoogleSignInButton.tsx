@@ -1,11 +1,15 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { Role } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { isDevMode } from "@/lib/dev";
-import { isGoogleSignInConfigured } from "@/lib/google-auth.config";
+import {
+  isExpoGo,
+  isGoogleSignInConfigured,
+  isNativeGoogleSignInAvailable,
+} from "@/lib/google-auth.config";
 import { colors, radii, spacing } from "@/theme";
 
 function GoogleIcon() {
@@ -24,7 +28,7 @@ function GoogleSignInButtonLive({
   setError: (m: string | null) => void;
 }) {
   const { t } = useTranslation();
-  const { signInWithGoogle, isGoogleReady } = useGoogleSignIn({
+  const { signInWithGoogle, isGoogleReady, isExpoGo: expoGo } = useGoogleSignIn({
     role,
     onError: setError,
     onSettled: () => setLoading(false),
@@ -34,11 +38,6 @@ function GoogleSignInButtonLive({
     setError(null);
     setLoading(true);
     try {
-      if (!isGoogleReady) {
-        setError("Google Sign-In non configuré. Ajoutez EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID dans .env");
-        setLoading(false);
-        return;
-      }
       await signInWithGoogle();
     } catch {
       setError("Erreur lors de la connexion Google.");
@@ -46,12 +45,14 @@ function GoogleSignInButtonLive({
     }
   };
 
+  const disabled = loading || (!isGoogleReady && !expoGo);
+
   return (
     <Pressable
       testID="google-signin"
       onPress={handlePress}
-      disabled={loading || !isGoogleReady}
-      style={[styles.googleBtn, (loading || !isGoogleReady) && styles.btnDisabled]}
+      disabled={disabled && !expoGo}
+      style={[styles.googleBtn, disabled && !expoGo && styles.btnDisabled]}
     >
       <GoogleIcon />
       <Text style={styles.googleBtnText}>{t("auth.google")}</Text>
@@ -100,7 +101,7 @@ function GoogleSignInButtonDev({
   );
 }
 
-/** Bouton Google — hook OAuth uniquement en live + config présente (évite le crash iOS). */
+/** Bouton Google — Sign-In natif (Android + iOS). Expo Go : message explicatif. */
 export function GoogleSignInButton({
   role,
   loading,
@@ -112,7 +113,30 @@ export function GoogleSignInButton({
   setLoading: (v: boolean) => void;
   setError: (m: string | null) => void;
 }) {
-  if (isDevMode()) {
+  // Expo Go : pas de module natif — on affiche le bouton qui explique au tap
+  if (isExpoGo()) {
+    return (
+      <GoogleSignInButtonLive
+        role={role}
+        loading={loading}
+        setLoading={setLoading}
+        setError={setError}
+      />
+    );
+  }
+
+  if (isNativeGoogleSignInAvailable()) {
+    return (
+      <GoogleSignInButtonLive
+        role={role}
+        loading={loading}
+        setLoading={setLoading}
+        setError={setError}
+      />
+    );
+  }
+
+  if (!isGoogleSignInConfigured() && isDevMode()) {
     return (
       <GoogleSignInButtonDev
         role={role}
@@ -123,29 +147,18 @@ export function GoogleSignInButton({
     );
   }
 
-  if (!isGoogleSignInConfigured()) {
-    const msg =
-      "Google non configuré : ajoutez EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID dans .env (Firebase → Auth → Google → Web client ID), puis relancez Expo avec --clear.";
-
-    return (
-      <Pressable
-        testID="google-signin"
-        onPress={() => setError(msg)}
-        style={[styles.googleBtn, styles.googleBtnUnconfigured]}
-      >
-        <GoogleIcon />
-        <Text style={styles.googleBtnText}>Continuer avec Google</Text>
-      </Pressable>
-    );
-  }
+  const msg =
+    "Google non configuré : ajoutez EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, puis rebuild EAS.";
 
   return (
-    <GoogleSignInButtonLive
-      role={role}
-      loading={loading}
-      setLoading={setLoading}
-      setError={setError}
-    />
+    <Pressable
+      testID="google-signin"
+      onPress={() => setError(msg)}
+      style={[styles.googleBtn, styles.googleBtnUnconfigured]}
+    >
+      <GoogleIcon />
+      <Text style={styles.googleBtnText}>Continuer avec Google</Text>
+    </Pressable>
   );
 }
 

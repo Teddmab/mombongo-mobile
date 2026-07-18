@@ -3,13 +3,10 @@ import {
   activity,
   agentFarmers,
   agentReports,
-  bourseOpportunities,
-  bourseTicker,
   courseModules,
   courses,
   cropTasks,
   farmerAlerts,
-  farmers,
   getCourseModules,
   merchantOrders,
   myListings,
@@ -17,12 +14,9 @@ import {
   type ActivityItem,
   type AgentFarmerCard,
   type AgentReport,
-  type BourseOpportunity,
-  type BourseTicker,
   type Course,
   type CourseModule,
   type CropTask,
-  type Farmer,
   type FarmerAlert,
   type Instructor,
   type MerchantOrder,
@@ -30,6 +24,23 @@ import {
   type Notification,
   type QuizQuestion,
 } from "@/data/mock";
+
+/** Réexport live — bourse / financement branchés Cloud Functions */
+export {
+  useBourseOpportunities,
+  useBourseOpportunity,
+  useBoursePrices,
+  useBourseTicker,
+  type BourseOpportunity,
+  type BourseTicker,
+} from "@/hooks/useBourse";
+
+export {
+  useFarmer,
+  useFarmers,
+  type Farmer,
+  type FarmerListing,
+} from "@/hooks/useFinancing";
 
 /** Données locales — pas encore de Cloud Functions ; mock en dev et prod. */
 function useLocalQuery<T>(key: string, fetcher: () => T) {
@@ -40,20 +51,8 @@ function useLocalQuery<T>(key: string, fetcher: () => T) {
   });
 }
 
-export function useBourseTicker() {
-  return useLocalQuery<BourseTicker[]>("bourseTicker", () => bourseTicker);
-}
-
-export function useBourseOpportunities() {
-  return useLocalQuery<BourseOpportunity[]>("bourseOpportunities", () => bourseOpportunities);
-}
-
 export function useNotifications() {
   return useLocalQuery<Notification[]>("notifications", () => notifications);
-}
-
-export function useFarmers() {
-  return useLocalQuery<Farmer[]>("farmers", () => farmers);
 }
 
 export function useCourses() {
@@ -109,12 +108,9 @@ export type {
   ActivityItem,
   AgentFarmerCard,
   AgentReport,
-  BourseOpportunity,
-  BourseTicker,
   Course,
   CourseModule,
   CropTask,
-  Farmer,
   FarmerAlert,
   Instructor,
   MerchantOrder,
