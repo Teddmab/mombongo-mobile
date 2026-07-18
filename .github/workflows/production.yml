@@ -1,0 +1,86 @@
+name: Production — EAS Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: "Submit to Play Store after build?"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-android-production:
+    name: Build Android Production (AAB)
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write  # needed to create GitHub Releases
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android (production profile)
+        id: eas-build
+        run: |
+          eas build \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --no-wait
+          echo "Build submitted to EAS."
+
+      - name: Submit to Play Store
+        if: ${{ github.event.inputs.submit == 'true' || (startsWith(github.ref, 'refs/tags/') && !cancelled()) }}
+        run: |
+          eas submit \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --latest
+        continue-on-error: true
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Mombongo Mobile ${{ github.ref_name }}"
+          body: |
+            ## Mombongo Mobile ${{ github.ref_name }}
+
+            Android AAB submitted to EAS Build and Play Store.
+
+            Track build at: https://expo.dev/accounts/afrotouch-ou/projects/mombongo/builds
+
+            ### What's new
+            See commit history for changes in this release.
+          draft: false
+          prerelease: false
+
+      - name: Post build summary
+        run: |
+          echo "## Production Build Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Android AAB build submitted to EAS. Track progress at:" >> $GITHUB_STEP_SUMMARY
+          echo "https://expo.dev/accounts/afrotouch-ou/projects/mombongo/builds" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Ref: \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
