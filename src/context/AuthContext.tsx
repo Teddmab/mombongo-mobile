@@ -18,6 +18,7 @@ export interface UserProfile {
   displayName: string;
   role: UserRole;
   walletUsd?: number;
+  walletCdf?: number;
   totalInvestedUsd?: number;
   totalEarnedUsd?: number;
 }
@@ -41,6 +42,7 @@ const DEV_MOCK_PROFILE: UserProfile = {
   displayName: "Alain",
   role: "investor",
   walletUsd: 500,
+  walletCdf: 1_400_000,
   totalInvestedUsd: 1200,
   totalEarnedUsd: 180,
 };
@@ -64,9 +66,10 @@ function normalizeProfile(data: Record<string, unknown> | null): UserProfile | n
     email: (data.email as string) ?? "",
     displayName: (data.fullName as string) || (data.displayName as string) || "",
     role: (data.role as UserRole) ?? "investor",
-    walletUsd: data.walletUsd as number | undefined,
-    totalInvestedUsd: data.totalInvestedUsd as number | undefined,
-    totalEarnedUsd: data.totalEarnedUsd as number | undefined,
+    walletUsd: typeof data.walletUsd === "number" ? data.walletUsd : undefined,
+    walletCdf: typeof data.walletCdf === "number" ? data.walletCdf : undefined,
+    totalInvestedUsd: typeof data.totalInvestedUsd === "number" ? data.totalInvestedUsd : undefined,
+    totalEarnedUsd: typeof data.totalEarnedUsd === "number" ? data.totalEarnedUsd : undefined,
   };
 }
 

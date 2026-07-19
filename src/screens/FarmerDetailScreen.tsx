@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PaymentModal } from "@/components/PaymentModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
+import { useAuth } from "@/hooks/useAuth";
 import { useFarmer } from "@/hooks/useFinancing";
 import { useProducts } from "@/hooks/useProducts";
 import { colors, radii, shadows, spacing } from "@/theme";
@@ -20,9 +21,11 @@ import { colors, radii, shadows, spacing } from "@/theme";
 export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { userProfile, refreshProfile } = useAuth();
   const { data: f, isLoading } = useFarmer(farmerId);
   const { data: products = [] } = useProducts();
   const [payOpen, setPayOpen] = useState(false);
+  const walletBalance = userProfile?.walletUsd ?? 0;
 
   if (isLoading || !f) {
     return (
@@ -130,7 +133,11 @@ export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
         subtitle={f.name}
         currency="USD"
         minAmount={50}
-        onSuccess={() => setPayOpen(false)}
+        walletBalance={walletBalance}
+        referenceId={farmerId ?? f.id}
+        onSuccess={() => {
+          void refreshProfile();
+        }}
       />
     </View>
   );

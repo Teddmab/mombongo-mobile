@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,15 +11,26 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/hooks/useAuth";
 import { isDevMode } from "@/lib/dev";
+import {
+  firebaseErrorMessage,
+  processWalletPayment,
+  type WalletPaymentType,
+} from "@/services/actions.service";
+import { getDepositStatus, initiateDeposit } from "@/services/wallet.service";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export type PaymentType = "invest" | "reserve" | "support" | "deposit" | "withdraw" | "subscribe";
-type Step = "amount" | "review" | "method" | "details" | "processing" | "success";
-type Method = "card" | "mobile";
+type Step = "amount" | "review" | "method" | "details" | "processing" | "success" | "error";
+type PayMethod = "card" | "mobile" | "wallet";
 type Operator = "mpesa" | "airtel" | "orange";
+
+const WALLET_TYPES: PaymentType[] = ["support", "reserve", "subscribe"];
+const FC_TO_USD = 2800;
 
 export interface PaymentModalProps {
   visible: boolean;
@@ -31,6 +41,8 @@ export interface PaymentModalProps {
   amount?: number;
   currency?: "USD" | "FC";
   minAmount?: number;
+  walletBalance?: number;
+  referenceId?: string;
   onSuccess?: () => void;
 }
 
@@ -105,20 +117,32 @@ export function PaymentModal({
   amount: initAmount,
   currency = "USD",
   minAmount = 50,
+  walletBalance = 0,
+  referenceId,
   onSuccess,
 }: PaymentModalProps) {
   const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
+  const { refreshProfile } = useAuth();
   const needsAmountStep = initAmount === undefined;
+  const showWallet = WALLET_TYPES.includes(type);
+
   const [step, setStep] = useState<Step>(needsAmountStep ? "amount" : "review");
   const [amount, setAmount] = useState(initAmount ?? minAmount);
-  const [method, setMethod] = useState<Method | null>(null);
+  const [method, setMethod] = useState<PayMethod | null>(null);
   const [operator, setOperator] = useState<Operator>("mpesa");
   const [cardNum, setCardNum] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [cardName, setCardName] = useState("");
   const [phone, setPhone] = useState("");
+  const [depositId, setDepositId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
   const [ref] = useState(() => `MBG-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+
+  const amountUsd = currency === "FC" ? Math.round(amount / FC_TO_USD) : amount;
+  const walletOk = walletBalance >= amountUsd;
+  const op = OPERATORS.find((o) => o.id === operator)!;
 
   useEffect(() => {
     if (!visible) return;
@@ -130,16 +154,39 @@ export function PaymentModal({
     setCvv("");
     setCardName("");
     setPhone("");
+    setDepositId(null);
+    setErrorMsg("");
   }, [visible, initAmount, minAmount, needsAmountStep]);
 
+  const { data: statusData } = useQuery({
+    queryKey: ["depositStatus", depositId],
+    queryFn: () => getDepositStatus(depositId!),
+    enabled: !!depositId && step === "processing",
+    refetchInterval: (query) =>
+      query.state.data?.status === "completed" || query.state.data?.status === "failed"
+        ? false
+        : 3000,
+  });
+
   useEffect(() => {
-    if (step !== "processing") return;
-    const t = setTimeout(() => setStep("success"), 2000);
-    return () => clearTimeout(t);
-  }, [step]);
+    if (statusData?.status === "completed") {
+      void qc.invalidateQueries({ queryKey: ["userProfile"] });
+      void refreshProfile();
+      setStep("success");
+      onSuccess?.();
+    }
+    if (statusData?.status === "failed") {
+      setErrorMsg("Le paiement a été refusé par l'opérateur. Réessayez.");
+      setStep("error");
+    }
+  }, [statusData?.status, qc, refreshProfile, onSuccess]);
 
   const meta = TYPE_META[type];
-  const cardOk = cardNum.replace(/\s/g, "").length >= 16 && expiry.length === 5 && cvv.length === 3 && cardName.length > 1;
+  const cardOk =
+    cardNum.replace(/\s/g, "").length >= 16 &&
+    expiry.length === 5 &&
+    cvv.length === 3 &&
+    cardName.length > 1;
   const phoneOk = phone.replace(/\D/g, "").length >= 9;
   const detailOk = method === "card" ? cardOk : phoneOk;
 
@@ -157,12 +204,60 @@ export function PaymentModal({
     onClose();
   };
 
-  const pay = () => {
-    if (!isDevMode()) {
-      Alert.alert("Mombongo", "Connexion Firebase requise pour les paiements.");
+  const finishSuccess = () => {
+    void qc.invalidateQueries({ queryKey: ["userProfile"] });
+    void refreshProfile();
+    setStep("success");
+    onSuccess?.();
+  };
+
+  const handlePay = async () => {
+    if (method === "wallet") {
+      setStep("processing");
+      try {
+        if (isDevMode()) {
+          await new Promise((r) => setTimeout(r, 800));
+        } else {
+          await processWalletPayment({
+            amountUsd,
+            type: type as WalletPaymentType,
+            referenceId,
+          });
+        }
+        finishSuccess();
+      } catch (err: unknown) {
+        setErrorMsg(firebaseErrorMessage(err, "Erreur lors du paiement."));
+        setStep("error");
+      }
       return;
     }
+
+    if (method === "mobile") {
+      setStep("processing");
+      try {
+        if (isDevMode()) {
+          await new Promise((r) => setTimeout(r, 1500));
+          finishSuccess();
+          return;
+        }
+        const data = await initiateDeposit({
+          amountUsd,
+          phone: phone.replace(/\D/g, ""),
+          operator,
+        });
+        setDepositId(data.depositId);
+      } catch (err: unknown) {
+        setErrorMsg(firebaseErrorMessage(err, "Erreur réseau. Réessayez."));
+        setStep("error");
+      }
+      return;
+    }
+
+    // Card not yet available
     setStep("processing");
+    await new Promise((r) => setTimeout(r, 800));
+    setErrorMsg("Le paiement par carte n'est pas encore disponible. Utilisez Mobile Money.");
+    setStep("error");
   };
 
   const successMessage: Record<PaymentType, string> = {
@@ -174,6 +269,8 @@ export function PaymentModal({
     subscribe: "Votre abonnement est activé. Profitez de toutes les fonctionnalités.",
   };
 
+  const hideHeader = step === "processing" || step === "success" || step === "error";
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable
@@ -184,7 +281,7 @@ export function PaymentModal({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
       >
-        {step !== "processing" && step !== "success" ? (
+        {!hideHeader ? (
           <View style={styles.header}>
             {canBack ? (
               <Pressable onPress={back} hitSlop={8} style={styles.headerBtn}>
@@ -254,50 +351,122 @@ export function PaymentModal({
           {step === "method" ? (
             <View style={styles.step}>
               <Text style={styles.stepHint}>Sélectionnez votre mode de paiement</Text>
-              {(["card", "mobile"] as const).map((m) => (
+
+              {showWallet ? (
                 <Pressable
-                  key={m}
-                  onPress={() => setMethod(m)}
-                  style={[styles.methodCard, method === m && styles.methodCardActive]}
+                  onPress={() => walletOk && setMethod("wallet")}
+                  style={[
+                    styles.methodCard,
+                    method === "wallet" && styles.methodCardActive,
+                    !walletOk && styles.methodCardDisabled,
+                  ]}
                 >
-                  <View style={[styles.methodIcon, method === m && styles.methodIconActive]}>
+                  <View
+                    style={[
+                      styles.methodIcon,
+                      method === "wallet" && styles.methodIconActive,
+                      !method && walletOk && styles.methodIconWallet,
+                    ]}
+                  >
                     <Ionicons
-                      name={m === "card" ? "card-outline" : "phone-portrait-outline"}
+                      name="wallet-outline"
                       size={20}
-                      color={method === m ? colors.white : colors.gray[600]}
+                      color={
+                        method === "wallet"
+                          ? colors.white
+                          : walletOk
+                            ? colors.amber[700]
+                            : colors.gray[400]
+                      }
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.methodTitle}>
-                      {m === "card" ? "Carte bancaire" : "Mobile Money"}
-                    </Text>
-                    <Text style={styles.methodSub}>
-                      {m === "card" ? "Visa, Mastercard" : "M-Pesa · Airtel · Orange"}
+                    <Text style={styles.methodTitle}>Wallet Mombongo</Text>
+                    <Text
+                      style={[
+                        styles.methodSub,
+                        { color: walletOk ? colors.green[700] : colors.danger },
+                      ]}
+                    >
+                      {walletOk
+                        ? `$${walletBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} disponible — instantané`
+                        : `Solde insuffisant ($${walletBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
                     </Text>
                   </View>
-                  <View style={[styles.radio, method === m && styles.radioActive]}>
-                    {method === m ? <View style={styles.radioDot} /> : null}
+                  <View style={[styles.radio, method === "wallet" && styles.radioActive]}>
+                    {method === "wallet" ? <View style={styles.radioDot} /> : null}
                   </View>
                 </Pressable>
-              ))}
+              ) : null}
+
+              <Pressable
+                onPress={() => setMethod("mobile")}
+                style={[styles.methodCard, method === "mobile" && styles.methodCardActive]}
+              >
+                <View style={[styles.methodIcon, method === "mobile" && styles.methodIconActive]}>
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={20}
+                    color={method === "mobile" ? colors.white : colors.gray[600]}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.methodTitle}>Mobile Money</Text>
+                  <Text style={styles.methodSub}>M-Pesa · Airtel · Orange</Text>
+                </View>
+                <View style={[styles.radio, method === "mobile" && styles.radioActive]}>
+                  {method === "mobile" ? <View style={styles.radioDot} /> : null}
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setMethod("card")}
+                style={[
+                  styles.methodCard,
+                  method === "card" && styles.methodCardActive,
+                  styles.methodCardMuted,
+                ]}
+              >
+                <View style={styles.methodIcon}>
+                  <Ionicons name="card-outline" size={20} color={colors.gray[400]} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.methodTitleRow}>
+                    <Text style={[styles.methodTitle, { color: colors.gray[600] }]}>
+                      Carte bancaire
+                    </Text>
+                    <View style={styles.soonBadge}>
+                      <Text style={styles.soonBadgeText}>Bientôt</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.methodSub, { color: colors.gray[400] }]}>
+                    Visa, Mastercard
+                  </Text>
+                </View>
+                <View style={[styles.radio, method === "card" && styles.radioMuted]}>
+                  {method === "card" ? <View style={styles.radioDot} /> : null}
+                </View>
+              </Pressable>
+
               {method === "mobile" ? (
                 <View style={styles.operatorGrid}>
-                  {OPERATORS.map((op) => (
+                  {OPERATORS.map((o) => (
                     <Pressable
-                      key={op.id}
-                      onPress={() => setOperator(op.id)}
-                      style={[styles.operatorBtn, operator === op.id && styles.operatorBtnActive]}
+                      key={o.id}
+                      onPress={() => setOperator(o.id)}
+                      style={[styles.operatorBtn, operator === o.id && styles.operatorBtnActive]}
                     >
-                      <View style={[styles.operatorLetter, { backgroundColor: op.color }]}>
-                        <Text style={styles.operatorLetterText}>{op.letter}</Text>
+                      <View style={[styles.operatorLetter, { backgroundColor: o.color }]}>
+                        <Text style={styles.operatorLetterText}>{o.letter}</Text>
                       </View>
-                      <Text style={styles.operatorName}>{op.name}</Text>
+                      <Text style={styles.operatorName}>{o.name}</Text>
                     </Pressable>
                   ))}
                 </View>
               ) : null}
+
               <Pressable
-                onPress={() => setStep("details")}
+                onPress={() => (method === "wallet" ? void handlePay() : setStep("details"))}
                 disabled={!method}
                 style={[styles.primaryBtn, !method && styles.btnDisabled]}
               >
@@ -359,6 +528,15 @@ export function PaymentModal({
                 </>
               ) : (
                 <>
+                  <View style={styles.opBadge}>
+                    <View style={[styles.operatorLetter, { backgroundColor: op.color, width: 48, height: 48 }]}>
+                      <Text style={[styles.operatorLetterText, { fontSize: 18 }]}>{op.letter}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.methodTitle}>{op.name}</Text>
+                      <Text style={styles.methodSub}>Mobile Money</Text>
+                    </View>
+                  </View>
                   <Field label="Numéro de téléphone">
                     <TextInput
                       value={phone}
@@ -378,7 +556,7 @@ export function PaymentModal({
                 </>
               )}
               <Pressable
-                onPress={pay}
+                onPress={() => void handlePay()}
                 disabled={!detailOk}
                 style={[styles.primaryBtn, !detailOk && styles.btnDisabled]}
               >
@@ -393,8 +571,14 @@ export function PaymentModal({
           {step === "processing" ? (
             <View style={styles.centered}>
               <ActivityIndicator size="large" color={colors.green[700]} />
-              <Text style={styles.processingTitle}>Traitement en cours…</Text>
-              <Text style={styles.processingSub}>Ne fermez pas cette fenêtre</Text>
+              <Text style={styles.processingTitle}>
+                {method === "mobile" ? "Confirmez sur votre téléphone" : "Traitement en cours…"}
+              </Text>
+              <Text style={styles.processingSub}>
+                {method === "mobile"
+                  ? `Notification ${op.name} envoyée · ${fmt(amount, currency)}`
+                  : "Ne fermez pas cette fenêtre"}
+              </Text>
             </View>
           ) : null}
 
@@ -416,6 +600,29 @@ export function PaymentModal({
               </View>
               <Pressable onPress={handleClose} style={styles.primaryBtn}>
                 <Text style={styles.primaryBtnText}>Fermer</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {step === "error" ? (
+            <View style={styles.centered}>
+              <View style={styles.errorIcon}>
+                <Ionicons name="alert-circle" size={40} color={colors.danger} />
+              </View>
+              <Text style={styles.processingTitle}>Paiement échoué</Text>
+              <Text style={styles.processingSub}>{errorMsg}</Text>
+              <Pressable
+                onPress={() => {
+                  setStep(method === "wallet" ? "method" : "details");
+                  setDepositId(null);
+                  setErrorMsg("");
+                }}
+                style={styles.primaryBtn}
+              >
+                <Text style={styles.primaryBtnText}>Réessayer</Text>
+              </Pressable>
+              <Pressable onPress={handleClose}>
+                <Text style={styles.cancelText}>Annuler</Text>
               </Pressable>
             </View>
           ) : null}
@@ -543,6 +750,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   methodCardActive: { borderColor: colors.green[700], backgroundColor: colors.green[50] },
+  methodCardDisabled: { opacity: 0.6, backgroundColor: colors.gray[50] },
+  methodCardMuted: { opacity: 0.7 },
   methodIcon: {
     width: 44,
     height: 44,
@@ -552,8 +761,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   methodIconActive: { backgroundColor: colors.green[700] },
+  methodIconWallet: { backgroundColor: colors.amber[50] },
   methodTitle: { fontSize: 14, fontWeight: "700", color: colors.gray[900] },
+  methodTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   methodSub: { fontSize: 11, color: colors.gray[500], marginTop: 2 },
+  soonBadge: {
+    backgroundColor: colors.gray[100],
+    borderRadius: radii.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  soonBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: colors.gray[400],
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   radio: {
     width: 20,
     height: 20,
@@ -564,6 +788,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   radioActive: { borderColor: colors.green[700], backgroundColor: colors.green[700] },
+  radioMuted: { borderColor: colors.gray[400], backgroundColor: colors.gray[400] },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.white },
   operatorGrid: { flexDirection: "row", gap: spacing.sm },
   operatorBtn: {
@@ -584,6 +809,14 @@ const styles = StyleSheet.create({
   },
   operatorLetterText: { fontSize: 14, fontWeight: "800", color: colors.white },
   operatorName: { fontSize: 9, fontWeight: "700", color: colors.gray[700], marginTop: 4 },
+  opBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.gray[50],
+    borderRadius: radii.xl,
+    padding: spacing.md,
+  },
   field: { gap: 6 },
   fieldLabel: {
     fontSize: 11,
@@ -613,13 +846,21 @@ const styles = StyleSheet.create({
   },
   amberBannerText: { fontSize: 12, fontWeight: "600", color: colors.amber[900] },
   centered: { alignItems: "center", paddingVertical: spacing.xl, gap: spacing.md },
-  processingTitle: { fontSize: 16, fontWeight: "700", color: colors.gray[900] },
-  processingSub: { fontSize: 12, color: colors.gray[500] },
+  processingTitle: { fontSize: 16, fontWeight: "700", color: colors.gray[900], textAlign: "center" },
+  processingSub: { fontSize: 12, color: colors.gray[500], textAlign: "center" },
   successIcon: {
     width: 80,
     height: 80,
     borderRadius: radii.xl,
     backgroundColor: colors.green[50],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.xl,
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -630,4 +871,5 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_800ExtraBold",
   },
   successSub: { fontSize: 13, color: colors.gray[500], textAlign: "center" },
+  cancelText: { fontSize: 12, color: colors.gray[400], marginTop: spacing.xs },
 });

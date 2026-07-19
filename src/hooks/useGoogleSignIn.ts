@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import {
-  GoogleSignin,
-  isErrorWithCode,
-  isSuccessResponse,
-  statusCodes,
-} from "@react-native-google-signin/google-signin";
 import type { Role } from "@/context/AppContext";
 import type { UserRole } from "@/context/AuthContext";
 import {
@@ -16,13 +10,32 @@ import {
 } from "@/lib/google-auth.config";
 import { authService, AuthServiceError } from "@/services/auth.service";
 
+type GoogleSignInModule = typeof import("@react-native-google-signin/google-signin");
+
+let googleModule: GoogleSignInModule | null | undefined;
 let configured = false;
 
-function ensureGoogleConfigured() {
+/** Charge le module natif seulement hors Expo Go — un import statique plante Expo Go. */
+function getGoogleModule(): GoogleSignInModule | null {
+  if (googleModule !== undefined) return googleModule;
+  if (isExpoGo()) {
+    googleModule = null;
+    return null;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    googleModule = require("@react-native-google-signin/google-signin") as GoogleSignInModule;
+  } catch {
+    googleModule = null;
+  }
+  return googleModule;
+}
+
+function ensureGoogleConfigured(mod: GoogleSignInModule) {
   if (configured) return;
   const { webClientId, iosClientId } = getGoogleOAuthConfig();
   if (!webClientId) return;
-  GoogleSignin.configure({
+  mod.GoogleSignin.configure({
     webClientId,
     ...(iosClientId ? { iosClientId } : {}),
     offlineAccess: false,
@@ -44,8 +57,13 @@ export function useGoogleSignIn(options: {
       setReady(false);
       return;
     }
+    const mod = getGoogleModule();
+    if (!mod) {
+      setReady(false);
+      return;
+    }
     try {
-      ensureGoogleConfigured();
+      ensureGoogleConfigured(mod);
       setReady(true);
     } catch {
       setReady(false);
@@ -67,11 +85,22 @@ export function useGoogleSignIn(options: {
       return;
     }
 
+    const mod = getGoogleModule();
+    if (!mod) {
+      onError(
+        "Module Google Sign-In indisponible. Rebuild EAS requis (dev client ou preview).",
+      );
+      onSettled?.();
+      return;
+    }
+
     if (processing.current) return;
     processing.current = true;
 
+    const { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } = mod;
+
     try {
-      ensureGoogleConfigured();
+      ensureGoogleConfigured(mod);
       if (Platform.OS === "android") {
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       }
@@ -116,7 +145,7 @@ export function useGoogleSignIn(options: {
 
   return {
     signInWithGoogle,
-    isGoogleReady: ready && isNativeGoogleSignInAvailable(),
+    isGoogleReady: ready && isNativeGoogleSignInAvailable() && Boolean(getGoogleModule()),
     isExpoGo: isExpoGo(),
   };
 }

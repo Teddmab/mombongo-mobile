@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
+import { PushNotificationsRegistrar } from "@/components/PushNotificationsRegistrar";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProfileRoleSync } from "@/context/ProfileRoleSync";
@@ -14,6 +15,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <AppProvider>
           <AuthProvider>
             <ProfileRoleSync />
+            <PushNotificationsRegistrar />
             {children}
           </AuthProvider>
         </AppProvider>

@@ -101,6 +101,28 @@ function GoogleSignInButtonDev({
   );
 }
 
+function GoogleSignInButtonExpoGo({
+  setError,
+}: {
+  setError: (m: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Pressable
+      testID="google-signin"
+      onPress={() =>
+        setError(
+          "Google Sign-In natif nécessite un build EAS (pas Expo Go). Lancez : eas build -p android --profile preview",
+        )
+      }
+      style={styles.googleBtn}
+    >
+      <GoogleIcon />
+      <Text style={styles.googleBtnText}>{t("auth.google")}</Text>
+    </Pressable>
+  );
+}
+
 /** Bouton Google — Sign-In natif (Android + iOS). Expo Go : message explicatif. */
 export function GoogleSignInButton({
   role,
@@ -113,16 +135,9 @@ export function GoogleSignInButton({
   setLoading: (v: boolean) => void;
   setError: (m: string | null) => void;
 }) {
-  // Expo Go : pas de module natif — on affiche le bouton qui explique au tap
+  // Expo Go : ne jamais charger le module natif (TurboModule crash)
   if (isExpoGo()) {
-    return (
-      <GoogleSignInButtonLive
-        role={role}
-        loading={loading}
-        setLoading={setLoading}
-        setError={setError}
-      />
-    );
+    return <GoogleSignInButtonExpoGo setError={setError} />;
   }
 
   if (isNativeGoogleSignInAvailable()) {

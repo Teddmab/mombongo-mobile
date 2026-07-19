@@ -15,6 +15,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAgentFarmers, type BourseOpportunity } from "@/hooks/useLocalData";
+import { isDevMode } from "@/lib/dev";
+import {
+  firebaseErrorMessage,
+  submitUserAction,
+} from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 function FormModal({
@@ -168,10 +173,27 @@ export function PublierProduitModal({
   const submit = async () => {
     if (!name || !qty || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Annonce "${name}" publiée avec succès`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_product", {
+          name,
+          category,
+          qty: Number(qty) || qty,
+          unit,
+          price: Number(price) || price,
+          region,
+          harvestDate,
+        });
+      }
+      Alert.alert("Mombongo", `Annonce "${name}" publiée avec succès`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier l'annonce."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -289,10 +311,27 @@ export function CommanderModal({
   const submit = async () => {
     if (!qty || !address) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Commande de ${qty} ${unit} de ${productName} confirmée`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("place_order", {
+          productName,
+          qty: Number(qty) || qty,
+          unit,
+          address,
+          date,
+          payment,
+          notes,
+        });
+      }
+      Alert.alert("Mombongo", `Commande de ${qty} ${unit} de ${productName} confirmée`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de confirmer la commande."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -381,10 +420,25 @@ export function MettreEnVenteModal({
   const submit = async () => {
     if (!qty || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `${crop} mis en vente sur la Bourse`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("list_for_sale", {
+          crop,
+          qty: Number(qty) || qty,
+          unit,
+          price: Number(price) || price,
+          available,
+        });
+      }
+      Alert.alert("Mombongo", `${crop} mis en vente sur la Bourse`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de mettre en vente."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -489,10 +543,29 @@ export function PublierPourAgriculteurModal({
   const submit = async () => {
     if (!farmerId || !name || !qty || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Annonce "${name}" publiée pour ${farmer?.name}`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_for_farmer", {
+          farmerId,
+          farmerName: farmer?.name,
+          name,
+          category,
+          qty: Number(qty) || qty,
+          unit,
+          price: Number(price) || price,
+          region: region || farmer?.region,
+          harvestDate,
+        });
+      }
+      Alert.alert("Mombongo", `Annonce "${name}" publiée pour ${farmer?.name}`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier pour l'agriculteur."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -630,10 +703,26 @@ export function ReserverLotModal({
   const submit = async () => {
     if (!opportunity) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Lot réservé — ${opportunity.title}`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("reserve_lot", {
+          opportunityId: opportunity.id,
+          title: opportunity.title,
+          parts: Number(parts) || 1,
+          payment,
+          price: opportunity.price,
+          volume: opportunity.volume,
+        });
+      }
+      Alert.alert("Mombongo", `Lot réservé — ${opportunity.title}`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de réserver le lot."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!opportunity) return null;
@@ -725,10 +814,28 @@ export function PublierLotModal({
   const submit = async () => {
     if (!title || !origin || !volume || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Lot "${title}" publié sur la Bourse`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_lot", {
+          title,
+          type,
+          origin,
+          destination: type === "transport" ? destination : undefined,
+          volume,
+          price,
+          duration,
+          spots: Number(spots) || spots,
+        });
+      }
+      Alert.alert("Mombongo", `Lot "${title}" publié sur la Bourse`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier le lot."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
