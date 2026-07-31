@@ -438,3 +438,68 @@ export const MOCK_CULTURAL_EVENTS: CulturalEvent[] = [
   { id: "ce7", cropType: "Cacao", eventType: "harvest", monthStart: 10, monthEnd: 2, description: "Grande récolte cacao (Oct – Fév)" },
   { id: "ce8", cropType: "Café Arabica", eventType: "harvest", monthStart: 10, monthEnd: 2, description: "Récolte café Arabica (Oct – Fév)" },
 ];
+
+/** Cours Academia alignés CF `getCourses` (S5-01) */
+export interface AcademiaCourseMock {
+  id: string;
+  title: string;
+  titleEn?: string;
+  description: string;
+  category: "agriculture" | "finance" | "commerce" | "technology";
+  level: "beginner" | "intermediate" | "advanced";
+  durationMinutes: number;
+  moduleCount: number;
+  thumbnail: string;
+  instructor: string;
+  isFeatured: boolean;
+  enrollmentCount: number;
+  status: "published" | "draft";
+}
+
+export const MOCK_ACADEMIA_COURSES: AcademiaCourseMock[] = [
+  {
+    id: "ac1",
+    title: "Agriculture durable au Congo",
+    titleEn: "Sustainable Agriculture in Congo",
+    description: "Maîtrisez les techniques modernes pour maximiser vos rendements de façon écologique.",
+    category: "agriculture",
+    level: "beginner",
+    durationMinutes: 90,
+    moduleCount: 4,
+    thumbnail: "",
+    instructor: "Dr. Olivier Mwamba",
+    isFeatured: true,
+    enrollmentCount: 128,
+    status: "published",
+  },
+  {
+    id: "ac2",
+    title: "Gestion financière pour agriculteurs",
+    titleEn: "Financial Management for Farmers",
+    description: "Apprenez à gérer votre budget, accéder aux financements et planifier votre saison.",
+    category: "finance",
+    level: "intermediate",
+    durationMinutes: 120,
+    moduleCount: 5,
+    thumbnail: "",
+    instructor: "Prof. Alice Kabila",
+    isFeatured: true,
+    enrollmentCount: 84,
+    status: "published",
+  },
+  {
+    id: "ac3",
+    title: "Commerce et export des produits agricoles",
+    titleEn: "Trade and Export of Agricultural Products",
+    description: "Comment vendre vos produits sur les marchés nationaux et internationaux.",
+    category: "commerce",
+    level: "advanced",
+    durationMinutes: 150,
+    moduleCount: 6,
+    thumbnail: "",
+    instructor: "Emmanuel Luyindula",
+    isFeatured: false,
+    enrollmentCount: 42,
+    status: "published",
+  },
+];

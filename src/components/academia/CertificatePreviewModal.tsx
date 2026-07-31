@@ -2,19 +2,25 @@ import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
-import type { Course } from "@/hooks/useLocalData";
+import type { AcademiaListCourse } from "@/hooks/useAcademia";
 import { colors, radii, spacing } from "@/theme";
 
 const CERT_DATE: Record<string, string> = {
   c4: "12 mai 2026",
+  ac1: "12 mai 2026",
 };
+
+type CertCourse = Pick<
+  AcademiaListCourse,
+  "id" | "title" | "category" | "duration" | "modules" | "icon" | "image"
+>;
 
 export function CertificatePreviewModal({
   course,
   visible,
   onClose,
 }: {
-  course: Course;
+  course: CertCourse;
   visible: boolean;
   onClose: () => void;
 }) {
