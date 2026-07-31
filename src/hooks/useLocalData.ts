@@ -36,9 +36,11 @@ export {
 export {
   useAgentFarmers,
   useCreateFinancingApplication,
+  useCulturalEvents,
   useFarmer,
   useFarmers,
   type AgentFarmerCard,
+  type CulturalEvent,
   type Farmer,
   type FarmerListing,
 } from "@/hooks/useFinancing";
