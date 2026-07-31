@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   activity,
-  agentFarmers,
   agentReports,
   courseModules,
   courses,
@@ -12,7 +11,6 @@ import {
   myListings,
   notifications,
   type ActivityItem,
-  type AgentFarmerCard,
   type AgentReport,
   type Course,
   type CourseModule,
@@ -36,8 +34,11 @@ export {
 } from "@/hooks/useBourse";
 
 export {
+  useAgentFarmers,
+  useCreateFinancingApplication,
   useFarmer,
   useFarmers,
+  type AgentFarmerCard,
   type Farmer,
   type FarmerListing,
 } from "@/hooks/useFinancing";
@@ -76,10 +77,6 @@ export function useAllCourseModules() {
   return useLocalQuery<Record<string, CourseModule[]>>("allCourseModules", () => courseModules);
 }
 
-export function useAgentFarmers() {
-  return useLocalQuery<AgentFarmerCard[]>("agentFarmers", () => agentFarmers);
-}
-
 export function useAgentReports() {
   return useLocalQuery<AgentReport[]>("agentReports", () => agentReports);
 }
@@ -106,7 +103,6 @@ export function useActivity() {
 
 export type {
   ActivityItem,
-  AgentFarmerCard,
   AgentReport,
   Course,
   CourseModule,

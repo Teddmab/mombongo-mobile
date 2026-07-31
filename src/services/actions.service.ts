@@ -45,6 +45,11 @@ const submitUserActionFn = httpsCallable<
   { success: boolean; actionId: string }
 >(functions, "submitUserAction");
 
+const getAgentReportUploadUrlFn = httpsCallable<
+  { filename: string; contentType: string },
+  { uploadUrl: string; path: string }
+>(functions, "getAgentReportUploadUrl");
+
 export async function processWalletPayment(payload: {
   amountUsd: number;
   type: WalletPaymentType;
@@ -88,6 +93,15 @@ export async function submitUserAction(
   payload: Record<string, unknown>,
 ) {
   const { data } = await submitUserActionFn({ actionType, payload });
+  return data;
+}
+
+/** URL signée pour upload photo de rapport agent */
+export async function getAgentReportUploadUrl(payload: {
+  filename: string;
+  contentType: string;
+}) {
+  const { data } = await getAgentReportUploadUrlFn(payload);
   return data;
 }
 
