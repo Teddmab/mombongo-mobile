@@ -12,22 +12,15 @@ import {
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  EMPTY_FILTERS,
+  FilterSheet,
+  type FilterState,
+} from "@/components/FilterSheet";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { type Category, type Product, useProducts } from "@/hooks/useProducts";
+import { type Product, useProducts } from "@/hooks/useProducts";
 import { colors, radii, spacing } from "@/theme";
-
-type Filter = "all" | Category | "bio" | "café" | "pêche";
-
-const CATS: { id: Filter; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: "all", labelKey: "market.all", icon: "sparkles-outline" },
-  { id: "agriculture", labelKey: "market.agriculture", icon: "leaf-outline" },
-  { id: "logistique", labelKey: "market.logistics", icon: "bus-outline" },
-  { id: "export", labelKey: "market.export", icon: "bag-outline" },
-  { id: "bio", labelKey: "market.bio", icon: "leaf-outline" },
-  { id: "café", labelKey: "market.coffee", icon: "cafe-outline" },
-  { id: "pêche", labelKey: "market.fish", icon: "fish-outline" },
-];
 
 function categoryVisual(category: Product["category"]) {
   if (category === "logistique") {
@@ -39,14 +32,13 @@ function categoryVisual(category: Product["category"]) {
   return { bg: colors.green[50], color: colors.green[700], icon: "leaf-outline" as const };
 }
 
-function filterProducts(list: Product[], q: string, cat: Filter) {
+function applyFilters(list: Product[], search: string, filters: FilterState) {
   return list.filter((p) => {
-    if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
-    if (cat === "all") return true;
-    if (cat === "bio") return /bio/i.test(p.name);
-    if (cat === "café") return /café/i.test(p.name);
-    if (cat === "pêche") return /poisson|pêche/i.test(p.name);
-    return p.category === cat;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filters.category && p.category !== filters.category) return false;
+    if (filters.minRoi != null && p.roi < filters.minRoi) return false;
+    if (filters.maxDuration != null && p.duration > filters.maxDuration) return false;
+    return true;
   });
 }
 
@@ -54,12 +46,25 @@ export function InvestorMarketScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
-  const [q, setQ] = useState("");
-  const [cat, setCat] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [shown, setShown] = useState(6);
   const { data: products = [], isLoading } = useProducts();
 
-  const filtered = useMemo(() => filterProducts(products, q, cat), [products, q, cat]);
+  const filtered = useMemo(
+    () => applyFilters(products, search, filters),
+    [products, search, filters],
+  );
+
+  const hasActiveFilters = !!(filters.category || filters.minRoi || filters.maxDuration);
+
+  const catLabel = (id: string) => {
+    if (id === "agriculture") return t("market.cat.agriculture");
+    if (id === "logistique") return t("market.cat.logistique");
+    if (id === "export") return t("market.cat.export");
+    return id;
+  };
 
   return (
     <TabScreen>
@@ -69,47 +74,72 @@ export function InvestorMarketScreen() {
         contentContainerStyle={[styles.content, scrollPadding]}
         testID="market-screen"
       >
-        <View style={styles.searchWrap}>
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color={colors.gray[400]}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder={t("market.search")}
-            placeholderTextColor={colors.gray[400]}
-            style={styles.searchInput}
-          />
+        <View style={styles.searchRow}>
+          <View style={styles.searchWrap}>
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color={colors.gray[400]}
+              style={styles.searchIcon}
+            />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder={t("market.searchPlaceholder")}
+              placeholderTextColor={colors.gray[400]}
+              style={styles.searchInput}
+              testID="market-search"
+            />
+            {search ? (
+              <Pressable onPress={() => setSearch("")} style={styles.clearBtn} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color={colors.gray[400]} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => setFilterOpen(true)}
+            style={[styles.filterBtn, hasActiveFilters && styles.filterBtnActive]}
+            testID="market-filter-btn"
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={hasActiveFilters ? colors.white : colors.gray[700]}
+            />
+          </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catRow}
-        >
-          {CATS.map((c) => {
-            const active = cat === c.id;
-            return (
+        {hasActiveFilters ? (
+          <View style={styles.activeChips}>
+            {filters.category ? (
               <Pressable
-                key={c.id}
-                onPress={() => setCat(c.id)}
-                style={[styles.catChip, active && styles.catChipActive]}
+                onPress={() => setFilters((f) => ({ ...f, category: null }))}
+                style={styles.activeChip}
               >
-                <Ionicons
-                  name={c.icon}
-                  size={12}
-                  color={active ? colors.white : colors.gray[700]}
-                />
-                <Text style={[styles.catChipText, active && styles.catChipTextActive]}>
-                  {t(c.labelKey)}
-                </Text>
+                <Text style={styles.activeChipText}>{catLabel(filters.category)}</Text>
+                <Ionicons name="close" size={12} color={colors.green[700]} />
               </Pressable>
-            );
-          })}
-        </ScrollView>
+            ) : null}
+            {filters.minRoi != null ? (
+              <Pressable
+                onPress={() => setFilters((f) => ({ ...f, minRoi: null }))}
+                style={styles.activeChip}
+              >
+                <Text style={styles.activeChipText}>ROI ≥ {filters.minRoi}%</Text>
+                <Ionicons name="close" size={12} color={colors.green[700]} />
+              </Pressable>
+            ) : null}
+            {filters.maxDuration != null ? (
+              <Pressable
+                onPress={() => setFilters((f) => ({ ...f, maxDuration: null }))}
+                style={styles.activeChip}
+              >
+                <Text style={styles.activeChipText}>≤ {filters.maxDuration}j</Text>
+                <Ionicons name="close" size={12} color={colors.green[700]} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <Text style={styles.count}>
           {t("market.opportunities", { count: filtered.length })}
@@ -123,7 +153,7 @@ export function InvestorMarketScreen() {
           <View style={styles.empty}>
             <Ionicons name="leaf-outline" size={40} color={colors.gray[400]} style={{ opacity: 0.4 }} />
             <Text style={styles.emptyTitle}>Aucun produit disponible</Text>
-            <Text style={styles.emptySub}>Revenez bientôt.</Text>
+            <Text style={styles.emptySub}>Modifiez vos filtres ou revenez bientôt.</Text>
           </View>
         ) : null}
 
@@ -164,6 +194,14 @@ export function InvestorMarketScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      <FilterSheet
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+        onReset={() => setFilters(EMPTY_FILTERS)}
+      />
     </TabScreen>
   );
 }
@@ -174,7 +212,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
     gap: spacing.md,
   },
-  searchWrap: { position: "relative" },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  searchWrap: { flex: 1, position: "relative" },
   searchIcon: { position: "absolute", left: 14, top: 13, zIndex: 1 },
   searchInput: {
     height: 44,
@@ -183,34 +222,41 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[200],
     borderRadius: radii.lg,
     paddingLeft: 40,
-    paddingRight: spacing.lg,
+    paddingRight: 36,
     fontSize: 13,
     color: colors.gray[900],
     fontFamily: "NotoSans_400Regular",
   },
-  catRow: { gap: spacing.sm, paddingRight: spacing.md },
-  catChip: {
-    height: 32,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.full,
+  clearBtn: { position: "absolute", right: 12, top: 14 },
+  filterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.gray[200],
     backgroundColor: colors.white,
-    flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
-  catChipActive: {
+  filterBtnActive: {
     backgroundColor: colors.green[700],
     borderColor: colors.green[700],
   },
-  catChipText: {
+  activeChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  activeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.green[50],
+    borderRadius: radii.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  activeChipText: {
     fontSize: 11,
     fontWeight: "700",
-    color: colors.gray[700],
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.green[700],
   },
-  catChipTextActive: { color: colors.white },
   count: {
     fontSize: 11,
     fontWeight: "600",
@@ -226,7 +272,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     fontFamily: "PlusJakartaSans_700Bold",
   },
-  emptySub: { fontSize: 12, color: colors.gray[400], marginTop: spacing.xs },
+  emptySub: { fontSize: 12, color: colors.gray[400], marginTop: spacing.xs, textAlign: "center" },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
