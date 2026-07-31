@@ -10,11 +10,11 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { CertificatePreviewModal } from "@/components/academia/CertificatePreviewModal";
-import { ModulePlayerModal } from "@/components/academia/ModulePlayerModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import {
@@ -24,7 +24,6 @@ import {
   useMyEnrollment,
   type AcademiaModule,
 } from "@/hooks/useAcademia";
-import type { CourseModule } from "@/hooks/useLocalData";
 import { firebaseErrorMessage } from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
 
@@ -34,32 +33,14 @@ function moduleGlyph(type: AcademiaModule["type"]): keyof typeof Ionicons.glyphM
   return "help-circle-outline";
 }
 
-function toPlayerMod(m: AcademiaModule): CourseModule {
-  return {
-    title: m.title,
-    type: m.type === "pdf" ? "reading" : m.type === "quiz" ? "quiz" : "video",
-    duration: `${m.durationMinutes} min`,
-    content:
-      m.type === "pdf"
-        ? "Document pédagogique — contenu disponible après inscription."
-        : undefined,
-    quiz: m.questions?.map((q) => ({
-      question: q.q,
-      options: q.options,
-      correct: q.answer,
-    })),
-  };
-}
-
 export function CourseDetailScreen({ courseId }: { courseId?: string }) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { data: course, isLoading: courseLoading } = useCourse(courseId);
   const { data: modules = [], isLoading: modulesLoading } = useCourseModules(courseId);
   const { data: enrollment } = useMyEnrollment(courseId);
   const enrollMutation = useEnrollCourse();
-
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [certOpen, setCertOpen] = useState(false);
 
   const isEnrolled = !!enrollment;
@@ -83,7 +64,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
 
   const openModule = (m: AcademiaModule) => {
     if (m.isFree || isEnrolled) {
-      setPlayingId(m.id);
+      router.push(`/academia/${courseId}/module/${m.id}` as never);
       return;
     }
     Alert.alert("Mombongo", t("academia.locked"));
@@ -115,7 +96,6 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
     );
   }
 
-  const activeMod = playingId ? modules.find((m) => m.id === playingId) : null;
   const heroImage = course.image;
 
   return (
@@ -300,17 +280,6 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
           )}
         </Pressable>
       </View>
-
-      {activeMod ? (
-        <ModulePlayerModal
-          visible={!!playingId}
-          mod={toPlayerMod(activeMod)}
-          locked={false}
-          onClose={() => setPlayingId(null)}
-          onComplete={() => setPlayingId(null)}
-          onUpgrade={() => setPlayingId(null)}
-        />
-      ) : null}
 
       <CertificatePreviewModal
         course={course}

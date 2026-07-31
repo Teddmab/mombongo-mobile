@@ -281,3 +281,55 @@ export function useEnrollCourse() {
     },
   });
 }
+
+export function useMarkModuleComplete() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (payload: { courseId: string; moduleId: string }) => {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 400));
+        const mods = qc.getQueryData<AcademiaModule[]>(["modules", payload.courseId]) ?? [];
+        const prev = qc.getQueryData<Enrollment | null>([
+          "enrollment",
+          user?.uid,
+          payload.courseId,
+        ]);
+        const completed = [...new Set([...(prev?.completedModules ?? []), payload.moduleId])];
+        const progressPct = Math.round((completed.length / Math.max(mods.length, 1)) * 100);
+        return { progressPct, isCompleted: progressPct >= 100 };
+      }
+      const result = await httpsCallable<
+        { courseId: string; moduleId: string },
+        { progressPct?: number; isCompleted?: boolean; success?: boolean }
+      >(
+        functions,
+        "markModuleComplete",
+      )(payload);
+      return {
+        progressPct: result.data.progressPct ?? 0,
+        isCompleted: Boolean(result.data.isCompleted),
+      };
+    },
+    onSuccess: (data, { courseId, moduleId }) => {
+      const key = ["enrollment", user?.uid, courseId] as const;
+      const prev = qc.getQueryData<Enrollment | null>(key);
+      const completed = [...new Set([...(prev?.completedModules ?? []), moduleId])];
+      const next: Enrollment = {
+        id: prev?.id ?? `dev-enroll-${courseId}`,
+        userId: prev?.userId ?? user?.uid ?? "dev",
+        courseId,
+        completedModules: completed,
+        progressPct: data.progressPct,
+        enrolledAt: prev?.enrolledAt ?? { seconds: Math.floor(Date.now() / 1000) },
+        completedAt: data.isCompleted
+          ? { seconds: Math.floor(Date.now() / 1000) }
+          : (prev?.completedAt ?? null),
+      };
+      qc.setQueryData(key, next);
+      if (!isDevMode()) {
+        void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
+      }
+    },
+  });
+}
