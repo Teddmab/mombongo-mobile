@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
 import { farmers as MOCK_FARMERS, type Farmer } from "@/data/mock";
 import { functions, isDevMode } from "@/lib/firebase";
+import { createFinancingApplication } from "@/services/actions.service";
 
 export type { Farmer };
 
@@ -127,5 +128,20 @@ export function useFarmer(id: string | undefined) {
       return farmer ? listingToFarmer(normalizeListing({ ...farmer, id: farmer.id ?? id })) : null;
     },
     staleTime: 60_000,
+  });
+}
+
+/** Finance un agriculteur via wallet USD (`createFinancingApplication`) */
+export function useCreateFinancingApplication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { farmerId: string; amountUsd: number }) =>
+      createFinancingApplication(payload),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: ["farmer", variables.farmerId] });
+      void qc.invalidateQueries({ queryKey: ["farmers"] });
+      void qc.invalidateQueries({ queryKey: ["my-financing"] });
+      void qc.invalidateQueries({ queryKey: ["userProfile"] });
+    },
   });
 }
