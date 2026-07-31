@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { MOCK_ACADEMIA_COURSES } from "@/data/mock";
+import { MOCK_ACADEMIA_COURSES, MOCK_ACADEMIA_MODULES } from "@/data/mock";
+import { useAuth } from "@/hooks/useAuth";
 import { functions, isDevMode } from "@/lib/firebase";
 
 export interface AcademiaCourse {
@@ -17,6 +18,29 @@ export interface AcademiaCourse {
   isFeatured: boolean;
   enrollmentCount: number;
   status: "published" | "draft" | string;
+}
+
+export interface AcademiaModule {
+  id: string;
+  courseId: string;
+  order: number;
+  title: string;
+  type: "video" | "pdf" | "quiz";
+  youtubeVideoId?: string;
+  pdfUrl?: string;
+  durationMinutes: number;
+  isFree: boolean;
+  questions?: Array<{ q: string; options: string[]; answer: number }>;
+}
+
+export interface Enrollment {
+  id: string;
+  userId: string;
+  courseId: string;
+  completedModules: string[];
+  progressPct: number;
+  enrolledAt: { seconds: number };
+  completedAt: { seconds: number } | null;
 }
 
 /** Shape UI liste Academia (compat écrans existants) */
@@ -103,6 +127,26 @@ function normalizeCourse(raw: Record<string, unknown>): AcademiaCourse {
   };
 }
 
+function normalizeModule(raw: Record<string, unknown>): AcademiaModule {
+  const typeRaw = String(raw.type ?? "video");
+  const type: AcademiaModule["type"] =
+    typeRaw === "pdf" || typeRaw === "quiz" ? typeRaw : "video";
+  return {
+    id: String(raw.id ?? ""),
+    courseId: String(raw.courseId ?? ""),
+    order: Number(raw.order ?? 0),
+    title: String(raw.title ?? ""),
+    type,
+    youtubeVideoId: raw.youtubeVideoId ? String(raw.youtubeVideoId) : undefined,
+    pdfUrl: raw.pdfUrl ? String(raw.pdfUrl) : undefined,
+    durationMinutes: Number(raw.durationMinutes ?? 0),
+    isFree: Boolean(raw.isFree),
+    questions: Array.isArray(raw.questions)
+      ? (raw.questions as AcademiaModule["questions"])
+      : undefined,
+  };
+}
+
 export function useCourses(category?: string) {
   return useQuery({
     queryKey: ["courses", category],
@@ -131,4 +175,109 @@ export function useCourses(category?: string) {
 export function useFeaturedCourses() {
   const { data = [], ...rest } = useCourses();
   return { data: data.filter((c) => c.isFeatured), ...rest };
+}
+
+export function useCourse(id: string | undefined) {
+  return useQuery({
+    queryKey: ["course", id],
+    enabled: !!id,
+    queryFn: async (): Promise<AcademiaListCourse | null> => {
+      if (isDevMode()) {
+        const found = MOCK_ACADEMIA_COURSES.find((c) => c.id === id);
+        return found ? toAcademiaListCourse(found) : null;
+      }
+      const result = await httpsCallable<{ id: string }, { course: Record<string, unknown> | null }>(
+        functions,
+        "getCourse",
+      )({ id: id! });
+      if (!result.data.course) return null;
+      return toAcademiaListCourse(normalizeCourse(result.data.course));
+    },
+    staleTime: 120_000,
+  });
+}
+
+export function useCourseModules(courseId: string | undefined) {
+  return useQuery({
+    queryKey: ["modules", courseId],
+    enabled: !!courseId,
+    queryFn: async (): Promise<AcademiaModule[]> => {
+      if (isDevMode()) {
+        return MOCK_ACADEMIA_MODULES.filter((m) => m.courseId === courseId).sort(
+          (a, b) => a.order - b.order,
+        );
+      }
+      const result = await httpsCallable<
+        { courseId: string },
+        { modules: Record<string, unknown>[] }
+      >(
+        functions,
+        "getCourseModules",
+      )({ courseId: courseId! });
+      return (result.data.modules ?? [])
+        .map(normalizeModule)
+        .sort((a, b) => a.order - b.order);
+    },
+    staleTime: 120_000,
+  });
+}
+
+export function useMyEnrollment(courseId: string | undefined) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["enrollment", user?.uid, courseId],
+    enabled: !!courseId && (!!user?.uid || isDevMode()),
+    queryFn: async (): Promise<Enrollment | null> => {
+      if (isDevMode()) return null;
+      if (!user?.uid) return null;
+      const result = await httpsCallable<
+        { courseId: string },
+        { enrollment: Enrollment | null }
+      >(
+        functions,
+        "getMyEnrollment",
+      )({ courseId: courseId! });
+      return result.data.enrollment;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useEnrollCourse() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (courseId: string) => {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 400));
+        return { success: true, enrollmentId: `dev-enroll-${courseId}` };
+      }
+      const result = await httpsCallable<
+        { courseId: string },
+        { success: boolean; enrollmentId: string }
+      >(
+        functions,
+        "enrollCourse",
+      )({ courseId });
+      return result.data;
+    },
+    onSuccess: (data, courseId) => {
+      const enrollment: Enrollment = {
+        id: data.enrollmentId,
+        userId: user?.uid ?? "dev",
+        courseId,
+        completedModules: [],
+        progressPct: 0,
+        enrolledAt: { seconds: Math.floor(Date.now() / 1000) },
+        completedAt: null,
+      };
+      // DEV: garder l’enrollment en cache (getMyEnrollment mock renvoie null)
+      qc.setQueryData(["enrollment", user?.uid, courseId], enrollment);
+      if (!isDevMode()) {
+        void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
+        void qc.invalidateQueries({ queryKey: ["course", courseId] });
+        void qc.invalidateQueries({ queryKey: ["courses"] });
+      }
+    },
+  });
 }

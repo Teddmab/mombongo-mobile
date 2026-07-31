@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ImageBackground,
   Pressable,
@@ -9,78 +11,111 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { CertificatePreviewModal } from "@/components/academia/CertificatePreviewModal";
 import { ModulePlayerModal } from "@/components/academia/ModulePlayerModal";
-import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { useCourses, type AcademiaListCourse } from "@/hooks/useAcademia";
+import {
+  useCourse,
+  useCourseModules,
+  useEnrollCourse,
+  useMyEnrollment,
+  type AcademiaModule,
+} from "@/hooks/useAcademia";
 import type { CourseModule } from "@/hooks/useLocalData";
+import { firebaseErrorMessage } from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
 
-const USER_HAS_PREMIUM = false;
-
-function moduleIcon(type: CourseModule["type"]): keyof typeof Ionicons.glyphMap {
+function moduleGlyph(type: AcademiaModule["type"]): keyof typeof Ionicons.glyphMap {
   if (type === "video") return "play-circle-outline";
-  if (type === "reading") return "document-text-outline";
+  if (type === "pdf") return "document-text-outline";
   return "help-circle-outline";
+}
+
+function toPlayerMod(m: AcademiaModule): CourseModule {
+  return {
+    title: m.title,
+    type: m.type === "pdf" ? "reading" : m.type === "quiz" ? "quiz" : "video",
+    duration: `${m.durationMinutes} min`,
+    content:
+      m.type === "pdf"
+        ? "Document pédagogique — contenu disponible après inscription."
+        : undefined,
+    quiz: m.questions?.map((q) => ({
+      question: q.q,
+      options: q.options,
+      correct: q.answer,
+    })),
+  };
 }
 
 export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   const insets = useSafeAreaInsets();
-  const { data: courses = [], isLoading } = useCourses();
-  const course: AcademiaListCourse | undefined =
-    courses.find((c) => c.id === courseId) ?? courses[0];
-  // Modules live — S5-03 ; placeholder vide pour la navigation liste → détail
-  const mods: CourseModule[] = [];
+  const { t } = useTranslation();
+  const { data: course, isLoading: courseLoading } = useCourse(courseId);
+  const { data: modules = [], isLoading: modulesLoading } = useCourseModules(courseId);
+  const { data: enrollment } = useMyEnrollment(courseId);
+  const enrollMutation = useEnrollCourse();
 
-  const moduleCount = course?.modules ?? 1;
-  const initialDone = course ? Math.round((course.progress / 100) * moduleCount) : 0;
-  const [completedSet, setCompletedSet] = useState<Set<number>>(
-    () => new Set(Array.from({ length: initialDone }, (_, i) => i))
-  );
-  const [playing, setPlaying] = useState<number | null>(null);
-  const [subOpen, setSubOpen] = useState(false);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const [certOpen, setCertOpen] = useState(false);
 
-  if (isLoading || !course) {
+  const isEnrolled = !!enrollment;
+  const progressPct = enrollment?.progressPct ?? 0;
+  const completedModules = enrollment?.completedModules ?? [];
+  const isFullyComplete = isEnrolled && progressPct >= 100;
+
+  const nextModule = isEnrolled
+    ? modules.find((m) => !completedModules.includes(m.id)) ?? modules[0]
+    : modules.find((m) => m.isFree) ?? null;
+
+  const handleEnroll = async () => {
+    if (!courseId) return;
+    try {
+      await enrollMutation.mutateAsync(courseId);
+      Alert.alert("Mombongo", t("academia.enrollSuccess"));
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de s'inscrire."));
+    }
+  };
+
+  const openModule = (m: AcademiaModule) => {
+    if (m.isFree || isEnrolled) {
+      setPlayingId(m.id);
+      return;
+    }
+    Alert.alert("Mombongo", t("academia.locked"));
+  };
+
+  const handleCta = () => {
+    if (isEnrolled) {
+      if (nextModule) openModule(nextModule);
+      return;
+    }
+    void handleEnroll();
+  };
+
+  if (courseLoading || modulesLoading) {
     return (
       <View style={styles.root} testID="course-detail-screen">
         <StackHeader title="Academia" />
-        <Text style={{ padding: spacing.lg, color: colors.gray[500] }}>
-          {isLoading ? "Chargement…" : "Cours introuvable"}
-        </Text>
+        <ActivityIndicator color={colors.green[700]} style={{ marginTop: spacing.xl }} />
       </View>
     );
   }
 
-  const progress =
-    moduleCount > 0 ? Math.round((completedSet.size / moduleCount) * 100) : 0;
-  const isFullyComplete = mods.length > 0 && completedSet.size >= mods.length;
-  const ctaLabel = progress === 0 ? "Commencer" : progress === 100 ? "Revoir" : "Continuer";
+  if (!course) {
+    return (
+      <View style={styles.root} testID="course-detail-screen">
+        <StackHeader title="Academia" />
+        <Text style={styles.missing}>{t("academia.empty")}</Text>
+      </View>
+    );
+  }
 
-  const isLocked = (idx: number) =>
-    course.isPremium && !USER_HAS_PREMIUM && idx >= course.previewModules;
-
-  const canOpen = (idx: number) => {
-    if (isLocked(idx)) return true;
-    if (completedSet.has(idx)) return true;
-    const maxDone = completedSet.size > 0 ? Math.max(...Array.from(completedSet)) : -1;
-    return idx <= maxDone + 1;
-  };
-
-  const markDone = (idx: number) => {
-    setCompletedSet((prev) => new Set([...prev, idx]));
-    setPlaying(null);
-  };
-
-  const startCourse = () => {
-    const next = mods.findIndex((_, i) => !completedSet.has(i));
-    if (next >= 0) setPlaying(next);
-  };
-
-  const activeMod = playing !== null ? mods[playing] : null;
+  const activeMod = playingId ? modules.find((m) => m.id === playingId) : null;
   const heroImage = course.image;
 
   return (
@@ -93,7 +128,11 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
       >
         <View style={styles.hero}>
           {heroImage ? (
-            <ImageBackground source={{ uri: heroImage }} style={styles.heroBg} imageStyle={styles.heroBgImg}>
+            <ImageBackground
+              source={{ uri: heroImage }}
+              style={styles.heroBg}
+              imageStyle={styles.heroBgImg}
+            >
               <View style={styles.heroOverlay} />
             </ImageBackground>
           ) : null}
@@ -104,53 +143,43 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
               ) : (
                 <Text style={styles.heroIcon}>{course.icon}</Text>
               )}
-              {!heroImage ? null : (
-                <Text style={[styles.heroIcon, styles.heroIconOverlay]}>{course.icon}</Text>
-              )}
             </View>
-          <Text style={styles.heroTitle}>{course.title}</Text>
-          {course.instructorName ? (
-            <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 6 }}>
-              {course.instructorName}
-            </Text>
-          ) : null}
-          <View style={styles.heroMeta}>
-            <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.heroMetaText}> {course.duration}</Text>
-            <Text style={styles.heroMetaText}> · </Text>
-            <Ionicons name="book-outline" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.heroMetaText}> {course.modules} modules</Text>
-          </View>
-          {progress > 0 ? (
-            <View style={styles.heroProgress}>
-              <View style={styles.heroProgressTrack}>
-                <View style={[styles.heroProgressFill, { width: `${progress}%` }]} />
-              </View>
-              <Text style={styles.heroProgressText}>
-                {progress}% · {completedSet.size}/{course.modules} modules
+            <View style={styles.levelPill}>
+              <Text style={styles.levelPillText}>{course.level}</Text>
+            </View>
+            <Text style={styles.heroTitle}>{course.title}</Text>
+            {course.instructorName ? (
+              <Text style={styles.heroInstructor}>{course.instructorName}</Text>
+            ) : null}
+            <View style={styles.heroMeta}>
+              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.heroMetaText}> {course.duration}</Text>
+              <Text style={styles.heroMetaText}> · </Text>
+              <Ionicons name="book-outline" size={12} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.heroMetaText}>
+                {" "}
+                {t("academia.modules_count", { n: course.modules })}
               </Text>
+              {course.enrollmentCount > 0 ? (
+                <>
+                  <Text style={styles.heroMetaText}> · </Text>
+                  <Ionicons name="people-outline" size={12} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.heroMetaText}> {course.enrollmentCount}</Text>
+                </>
+              ) : null}
             </View>
-          ) : null}
-          {course.isPremium ? (
-            <View style={styles.premiumPill}>
-              <Text style={styles.premiumPillText}>PREMIUM</Text>
-            </View>
-          ) : null}
           </View>
         </View>
 
-        {course.isPremium && !USER_HAS_PREMIUM ? (
-          <View style={[styles.premiumBanner, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
-            <Ionicons name="sparkles" size={16} color={colors.amber[700]} />
-            <View style={styles.premiumBannerBody}>
-              <Text style={styles.premiumBannerTitle}>
-                {course.previewModules} module{course.previewModules > 1 ? "s" : ""} en aperçu gratuit
-              </Text>
-              <Text style={styles.premiumBannerSub}>Débloquez tout avec Premium.</Text>
+        {isEnrolled ? (
+          <View style={[styles.progressCard, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>{t("academia.progress")}</Text>
+              <Text style={styles.progressPct}>{progressPct}%</Text>
             </View>
-            <Pressable onPress={() => setSubOpen(true)} style={styles.premiumBannerBtn}>
-              <Text style={styles.premiumBannerBtnText}>Upgrade</Text>
-            </Pressable>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+            </View>
           </View>
         ) : null}
 
@@ -162,77 +191,57 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
               <Text style={styles.doneSub}>Votre certificat est disponible.</Text>
             </View>
             <Pressable onPress={() => setCertOpen(true)} style={styles.certBtn}>
-              <Text style={styles.certBtnText}>Voir le certificat</Text>
+              <Text style={styles.certBtnText}>Voir</Text>
             </Pressable>
           </View>
         ) : null}
 
-        <Text style={styles.sectionLabel}>Programme</Text>
+        <Text style={styles.sectionLabel}>Contenu du cours</Text>
         <View style={[styles.moduleList, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
-          {mods.length === 0 ? (
-            <Text style={{ color: colors.gray[500], fontSize: 13, paddingVertical: spacing.md }}>
-              Les modules seront disponibles bientôt.
-            </Text>
-          ) : null}
-          {mods.map((mod, i) => {
-            const done = completedSet.has(i);
-            const locked = isLocked(i);
-            const accessible = canOpen(i);
-            const isPreview = course.isPremium && !USER_HAS_PREMIUM && i < course.previewModules;
+          {modules.map((m, idx) => {
+            const canOpen = m.isFree || isEnrolled;
+            const done = completedModules.includes(m.id);
             return (
               <Pressable
-                key={i}
-                onPress={() => {
-                  if (!accessible) return;
-                  if (locked) {
-                    setSubOpen(true);
-                    return;
-                  }
-                  setPlaying(i);
-                }}
-                style={[
-                  styles.moduleRow,
-                  done && styles.moduleRowDone,
-                  !accessible && !locked && styles.moduleRowDisabled,
-                ]}
+                key={m.id}
+                onPress={() => openModule(m)}
+                style={[styles.moduleRow, !canOpen && styles.moduleRowDisabled, done && styles.moduleRowDone]}
               >
                 <View
                   style={[
                     styles.moduleIcon,
                     done && styles.moduleIconDone,
-                    locked && styles.moduleIconLocked,
+                    !canOpen && styles.moduleIconLocked,
                   ]}
                 >
                   {done ? (
                     <Ionicons name="checkmark" size={18} color={colors.white} />
-                  ) : locked ? (
+                  ) : !canOpen ? (
                     <Ionicons name="lock-closed" size={16} color={colors.gray[400]} />
                   ) : (
-                    <Ionicons name={moduleIcon(mod.type)} size={18} color={colors.amber[700]} />
+                    <Ionicons name={moduleGlyph(m.type)} size={18} color={colors.amber[700]} />
                   )}
                 </View>
                 <View style={styles.moduleBody}>
                   <View style={styles.moduleTitleRow}>
+                    <Text style={styles.moduleOrder}>{idx + 1}.</Text>
                     <Text style={styles.moduleTitle} numberOfLines={2}>
-                      {mod.title}
+                      {m.title}
                     </Text>
-                    {isPreview && !done ? (
-                      <View style={styles.previewBadge}>
-                        <Text style={styles.previewBadgeText}>Aperçu</Text>
-                      </View>
-                    ) : null}
                   </View>
                   <View style={styles.moduleMeta}>
-                    <Text style={styles.moduleDuration}>{mod.duration}</Text>
-                    <Text style={styles.moduleType}>{mod.type}</Text>
-                    {locked ? <Text style={styles.modulePremium}>Premium</Text> : null}
+                    <Text style={styles.moduleDuration}>{m.durationMinutes} min</Text>
+                    <Text style={styles.moduleType}>{m.type}</Text>
+                    {m.isFree ? <Text style={styles.moduleFree}>Gratuit</Text> : null}
                   </View>
                 </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={accessible ? colors.gray[400] : colors.gray[200]}
-                />
+                {done ? (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.green[600]} />
+                ) : !canOpen ? (
+                  <Ionicons name="lock-closed" size={16} color={colors.gray[400]} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color={colors.gray[400]} />
+                )}
               </Pressable>
             );
           })}
@@ -269,34 +278,40 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {course.isPremium && !USER_HAS_PREMIUM ? (
-          <Pressable onPress={() => setSubOpen(true)} style={styles.ctaPremium}>
-            <Ionicons name="sparkles" size={16} color={colors.amber[900]} />
-            <Text style={styles.ctaPremiumText}>Passer en Premium</Text>
-          </Pressable>
-        ) : (
-          <Pressable onPress={startCourse} style={styles.ctaBtn}>
-            <Ionicons name="play" size={16} color={colors.white} />
-            <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
-          </Pressable>
-        )}
+        <Pressable
+          onPress={handleCta}
+          disabled={enrollMutation.isPending}
+          style={[styles.ctaBtn, enrollMutation.isPending && { opacity: 0.6 }]}
+          testID="course-enroll-btn"
+        >
+          {enrollMutation.isPending ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <>
+              <Ionicons
+                name={isEnrolled ? "play" : "school-outline"}
+                size={16}
+                color={colors.white}
+              />
+              <Text style={styles.ctaBtnText}>
+                {isEnrolled ? t("academia.continue") : t("academia.enroll")}
+              </Text>
+            </>
+          )}
+        </Pressable>
       </View>
 
-      {activeMod && playing !== null ? (
+      {activeMod ? (
         <ModulePlayerModal
-          visible={playing !== null}
-          mod={activeMod}
-          locked={isLocked(playing)}
-          onClose={() => setPlaying(null)}
-          onComplete={() => markDone(playing)}
-          onUpgrade={() => {
-            setPlaying(null);
-            setSubOpen(true);
-          }}
+          visible={!!playingId}
+          mod={toPlayerMod(activeMod)}
+          locked={false}
+          onClose={() => setPlayingId(null)}
+          onComplete={() => setPlayingId(null)}
+          onUpgrade={() => setPlayingId(null)}
         />
       ) : null}
 
-      <SubscriptionModal visible={subOpen} onClose={() => setSubOpen(false)} />
       <CertificatePreviewModal
         course={course}
         visible={certOpen}
@@ -308,14 +323,17 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.appBackground },
+  missing: {
+    padding: spacing.lg,
+    color: colors.gray[500],
+    textAlign: "center",
+  },
   hero: {
     backgroundColor: colors.green[800],
     overflow: "hidden",
     position: "relative",
   },
-  heroBg: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  heroBg: { ...StyleSheet.absoluteFillObject },
   heroBgImg: { opacity: 0.25 },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -338,65 +356,57 @@ const styles = StyleSheet.create({
   },
   heroPhoto: { width: "100%", height: "100%" },
   heroIcon: { fontSize: 40 },
-  heroIconOverlay: {
-    position: "absolute",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  heroTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.white,
-    marginTop: spacing.md,
-    textAlign: "center",
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-  },
-  heroMeta: { flexDirection: "row", alignItems: "center", marginTop: spacing.xs },
-  heroMetaText: { fontSize: 12, color: "rgba(255,255,255,0.7)" },
-  heroProgress: { width: "100%", maxWidth: 280, marginTop: spacing.lg },
-  heroProgressTrack: {
-    height: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  heroProgressFill: { height: "100%", backgroundColor: colors.amber[400] },
-  heroProgressText: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  premiumPill: {
+  levelPill: {
     marginTop: spacing.sm,
-    backgroundColor: colors.amber[400],
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: radii.full,
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  premiumPillText: { fontSize: 9, fontWeight: "800", color: colors.amber[900], letterSpacing: 0.5 },
-  premiumBanner: {
+  levelPillText: { fontSize: 9, fontWeight: "800", color: colors.white },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.white,
+    marginTop: spacing.sm,
+    textAlign: "center",
+    fontFamily: "PlusJakartaSans_800ExtraBold",
+  },
+  heroInstructor: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  heroMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    marginTop: spacing.sm,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  heroMetaText: { fontSize: 12, color: "rgba(255,255,255,0.7)" },
+  progressCard: {
     marginTop: spacing.md,
-    backgroundColor: colors.amber[50],
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.amber[100],
+    borderColor: colors.gray[200],
     borderRadius: radii.xl,
     padding: spacing.md,
   },
-  premiumBannerBody: { flex: 1 },
-  premiumBannerTitle: { fontSize: 12, fontWeight: "700", color: colors.amber[900] },
-  premiumBannerSub: { fontSize: 11, color: colors.amber[700], marginTop: 2 },
-  premiumBannerBtn: {
-    backgroundColor: colors.amber[400],
-    borderRadius: radii.lg,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  premiumBannerBtnText: { fontSize: 11, fontWeight: "700", color: colors.amber[900] },
+  progressLabel: { fontSize: 12, fontWeight: "700", color: colors.gray[700] },
+  progressPct: { fontSize: 12, fontWeight: "700", color: colors.green[700] },
+  progressTrack: {
+    height: 8,
+    backgroundColor: colors.gray[100],
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: { height: "100%", backgroundColor: colors.green[700] },
   doneBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -440,7 +450,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   moduleRowDone: { borderColor: colors.green[100] },
-  moduleRowDisabled: { opacity: 0.55 },
+  moduleRowDisabled: { opacity: 0.6 },
   moduleIcon: {
     width: 40,
     height: 40,
@@ -452,15 +462,9 @@ const styles = StyleSheet.create({
   moduleIconDone: { backgroundColor: colors.green[700] },
   moduleIconLocked: { backgroundColor: colors.gray[100] },
   moduleBody: { flex: 1, minWidth: 0 },
-  moduleTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  moduleTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 4 },
+  moduleOrder: { fontSize: 13, fontWeight: "700", color: colors.gray[400] },
   moduleTitle: { fontSize: 13, fontWeight: "700", color: colors.gray[900], flex: 1 },
-  previewBadge: {
-    backgroundColor: colors.green[50],
-    borderRadius: radii.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  previewBadgeText: { fontSize: 9, fontWeight: "700", color: colors.green[700] },
   moduleMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
   moduleDuration: { fontSize: 10, color: colors.gray[400] },
   moduleType: {
@@ -473,14 +477,10 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     textTransform: "uppercase",
   },
-  modulePremium: {
+  moduleFree: {
     fontSize: 9,
     fontWeight: "700",
-    color: colors.amber[700],
-    backgroundColor: colors.amber[50],
-    borderRadius: radii.full,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    color: colors.green[700],
   },
   aboutCard: {
     backgroundColor: colors.white,
@@ -499,7 +499,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   aboutCell: { flex: 1 },
-  aboutCellLabel: { fontSize: 10, fontWeight: "700", color: colors.gray[400], textTransform: "uppercase" },
+  aboutCellLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.gray[400],
+    textTransform: "uppercase",
+  },
   aboutCellValue: { fontSize: 13, fontWeight: "800", color: colors.gray[900], marginTop: 2 },
   instructorCard: {
     flexDirection: "row",
@@ -511,7 +516,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     padding: spacing.lg,
   },
-  instructorPhoto: { width: 48, height: 48, borderRadius: 24 },
   instructorBody: { flex: 1 },
   instructorName: { fontSize: 14, fontWeight: "800", color: colors.gray[900] },
   instructorTitle: { fontSize: 11, color: colors.gray[500], marginTop: 2 },
@@ -537,15 +541,4 @@ const styles = StyleSheet.create({
     ...shadows.elevated,
   },
   ctaBtnText: { fontSize: 14, fontWeight: "700", color: colors.white },
-  ctaPremium: {
-    height: 48,
-    backgroundColor: colors.amber[400],
-    borderRadius: radii.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    ...shadows.elevated,
-  },
-  ctaPremiumText: { fontSize: 14, fontWeight: "700", color: colors.amber[900] },
 });
