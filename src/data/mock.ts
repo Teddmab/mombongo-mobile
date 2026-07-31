@@ -503,3 +503,100 @@ export const MOCK_ACADEMIA_COURSES: AcademiaCourseMock[] = [
     status: "published",
   },
 ];
+
+export interface AcademiaModuleMock {
+  id: string;
+  courseId: string;
+  order: number;
+  title: string;
+  type: "video" | "pdf" | "quiz";
+  youtubeVideoId?: string;
+  pdfUrl?: string;
+  durationMinutes: number;
+  isFree: boolean;
+  questions?: Array<{ q: string; options: string[]; answer: number }>;
+}
+
+export const MOCK_ACADEMIA_MODULES: AcademiaModuleMock[] = [
+  {
+    id: "am1",
+    courseId: "ac1",
+    order: 1,
+    title: "Introduction à l'agriculture régénérative",
+    type: "video",
+    youtubeVideoId: "dQw4w9WgXcQ",
+    durationMinutes: 18,
+    isFree: true,
+  },
+  {
+    id: "am2",
+    courseId: "ac1",
+    order: 2,
+    title: "Gestion de l'eau et irrigation",
+    type: "video",
+    youtubeVideoId: "dQw4w9WgXcQ",
+    durationMinutes: 22,
+    isFree: false,
+  },
+  {
+    id: "am3",
+    courseId: "ac1",
+    order: 3,
+    title: "Guide de compostage — PDF",
+    type: "pdf",
+    pdfUrl: "",
+    durationMinutes: 15,
+    isFree: false,
+  },
+  {
+    id: "am4",
+    courseId: "ac1",
+    order: 4,
+    title: "Quiz — Agriculture durable",
+    type: "quiz",
+    durationMinutes: 10,
+    isFree: false,
+    questions: [
+      {
+        q: "Quel engrais naturel améliore la structure du sol ?",
+        options: ["Urée", "Compost", "DAP", "NPK"],
+        answer: 1,
+      },
+      {
+        q: "Quelle pratique réduit le ruissellement ?",
+        options: ["Déforestation", "Labour profond", "Couverture végétale", "Irrigation intensive"],
+        answer: 2,
+      },
+    ],
+  },
+  {
+    id: "am5",
+    courseId: "ac2",
+    order: 1,
+    title: "Introduction à la gestion agricole",
+    type: "video",
+    youtubeVideoId: "dQw4w9WgXcQ",
+    durationMinutes: 20,
+    isFree: true,
+  },
+  {
+    id: "am6",
+    courseId: "ac2",
+    order: 2,
+    title: "Trésorerie et budget de saison",
+    type: "video",
+    youtubeVideoId: "dQw4w9WgXcQ",
+    durationMinutes: 25,
+    isFree: false,
+  },
+  {
+    id: "am7",
+    courseId: "ac3",
+    order: 1,
+    title: "Les marchés nationaux et régionaux",
+    type: "video",
+    youtubeVideoId: "dQw4w9WgXcQ",
+    durationMinutes: 30,
+    isFree: true,
+  },
+];
