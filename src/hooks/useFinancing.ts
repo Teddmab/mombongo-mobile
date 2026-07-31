@@ -3,14 +3,16 @@ import { httpsCallable } from "firebase/functions";
 import {
   agentFarmers as MOCK_AGENT_FARMERS,
   farmers as MOCK_FARMERS,
+  MOCK_CULTURAL_EVENTS,
   type AgentFarmerCard,
+  type CulturalEvent,
   type Farmer,
 } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
 import { functions, isDevMode } from "@/lib/firebase";
 import { createFinancingApplication } from "@/services/actions.service";
 
-export type { Farmer, AgentFarmerCard };
+export type { Farmer, AgentFarmerCard, CulturalEvent };
 
 /** Shape renvoyée par les Cloud Functions getFarmers / getFarmer */
 export interface FarmerListing {
@@ -218,5 +220,45 @@ export function useAgentFarmers() {
       );
     },
     staleTime: 60_000,
+  });
+}
+
+function normalizeCulturalEvent(raw: Record<string, unknown>): CulturalEvent {
+  const eventType = String(raw.eventType ?? "planting");
+  const allowed = ["planting", "harvest", "fertilizing", "irrigation"] as const;
+  return {
+    id: String(raw.id ?? ""),
+    cropType: String(raw.cropType ?? ""),
+    eventType: (allowed.includes(eventType as (typeof allowed)[number])
+      ? eventType
+      : "planting") as CulturalEvent["eventType"],
+    monthStart: Number(raw.monthStart ?? 1),
+    monthEnd: Number(raw.monthEnd ?? 1),
+    description: String(raw.description ?? ""),
+  };
+}
+
+/** Calendrier cultural (`getCulturalEvents`) */
+export function useCulturalEvents(cropType?: string) {
+  return useQuery({
+    queryKey: ["cultural-events", cropType],
+    queryFn: async (): Promise<CulturalEvent[]> => {
+      if (isDevMode()) {
+        let events = [...MOCK_CULTURAL_EVENTS];
+        if (cropType) events = events.filter((e) => e.cropType === cropType);
+        return events.slice().sort((a, b) => a.monthStart - b.monthStart);
+      }
+      const result = await httpsCallable<
+        { cropType?: string },
+        { events: Record<string, unknown>[] }
+      >(
+        functions,
+        "getCulturalEvents",
+      )({ cropType });
+      return (result.data.events ?? [])
+        .map(normalizeCulturalEvent)
+        .sort((a, b) => a.monthStart - b.monthStart);
+    },
+    staleTime: 3_600_000,
   });
 }

@@ -416,3 +416,25 @@ export const merchantOrders: MerchantOrder[] = [
   { id: "mo3", product: "Manioc", icon: "🌿", supplier: "Coopérative Maluku", region: "Kinshasa", quantity: 100, unit: "sacs", pricePerUnitFC: 320, totalUsd: 180, status: "livré", deliveryDate: "28 mai", category: "agriculture" },
   { id: "mo4", product: "Arachides", icon: "🥜", supplier: "Coopérative Mbanza-Ngungu", region: "Kongo Central", quantity: 150, unit: "sacs", pricePerUnitFC: 1950, totalUsd: 420, status: "en cours", deliveryDate: "8 juin", category: "export" },
 ];
+
+export type CulturalEventType = "planting" | "harvest" | "fertilizing" | "irrigation";
+
+export interface CulturalEvent {
+  id: string;
+  cropType: string;
+  eventType: CulturalEventType;
+  monthStart: number;
+  monthEnd: number;
+  description: string;
+}
+
+export const MOCK_CULTURAL_EVENTS: CulturalEvent[] = [
+  { id: "ce1", cropType: "Maïs", eventType: "planting", monthStart: 10, monthEnd: 11, description: "Semis de maïs — début saison sèche" },
+  { id: "ce2", cropType: "Maïs", eventType: "harvest", monthStart: 3, monthEnd: 4, description: "Récolte maïs" },
+  { id: "ce3", cropType: "Manioc", eventType: "planting", monthStart: 9, monthEnd: 10, description: "Bouturage manioc" },
+  { id: "ce4", cropType: "Manioc", eventType: "harvest", monthStart: 9, monthEnd: 12, description: "Récolte manioc — 12 mois après semis" },
+  { id: "ce5", cropType: "Soja", eventType: "planting", monthStart: 4, monthEnd: 5, description: "Semis soja grande saison" },
+  { id: "ce6", cropType: "Soja", eventType: "harvest", monthStart: 8, monthEnd: 9, description: "Récolte soja" },
+  { id: "ce7", cropType: "Cacao", eventType: "harvest", monthStart: 10, monthEnd: 2, description: "Grande récolte cacao (Oct – Fév)" },
+  { id: "ce8", cropType: "Café Arabica", eventType: "harvest", monthStart: 10, monthEnd: 2, description: "Récolte café Arabica (Oct – Fév)" },
+];
