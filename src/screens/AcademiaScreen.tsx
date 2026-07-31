@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,10 +15,22 @@ import { CertificatePreviewModal } from "@/components/academia/CertificatePrevie
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { useCourses, type Course } from "@/hooks/useLocalData";
+import {
+  useCourses,
+  useFeaturedCourses,
+  type AcademiaListCourse,
+} from "@/hooks/useAcademia";
 import { colors, radii, spacing } from "@/theme";
 
-function levelStyle(level: Course["level"]) {
+const CATEGORIES = [
+  { key: undefined, labelKey: "academia.filterAll" },
+  { key: "agriculture", labelKey: "academia.filterAgriculture" },
+  { key: "finance", labelKey: "academia.filterFinance" },
+  { key: "commerce", labelKey: "academia.filterCommerce" },
+  { key: "technology", labelKey: "academia.filterTechnology" },
+] as const;
+
+function levelStyle(level: AcademiaListCourse["level"]) {
   if (level === "Débutant") return { bg: colors.green[50], text: colors.green[700] };
   if (level === "Intermédiaire") return { bg: colors.amber[50], text: colors.amber[700] };
   return { bg: "#FEE2E2", text: colors.danger };
@@ -21,7 +41,7 @@ function CourseRow({
   onPress,
   t,
 }: {
-  course: Course;
+  course: AcademiaListCourse;
   onPress: () => void;
   t: (k: string) => string;
 }) {
@@ -41,6 +61,11 @@ function CourseRow({
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle}>{c.title}</Text>
+        {c.instructorName ? (
+          <Text style={styles.rowInstructor} numberOfLines={1}>
+            {c.instructorName}
+          </Text>
+        ) : null}
         <View style={styles.rowMeta}>
           <Ionicons name="time-outline" size={12} color={colors.gray[500]} />
           <Text style={styles.rowMetaText}> {c.duration}</Text>
@@ -50,6 +75,16 @@ function CourseRow({
             {" "}
             {c.modules} {t("academia.modules")}
           </Text>
+          {c.enrollmentCount > 0 ? (
+            <>
+              <Text style={styles.rowMetaText}> · </Text>
+              <Ionicons name="people-outline" size={12} color={colors.gray[500]} />
+              <Text style={styles.rowMetaText}>
+                {" "}
+                {c.enrollmentCount} {t("academia.enrolled")}
+              </Text>
+            </>
+          ) : null}
         </View>
         {c.progress > 0 && c.progress < 100 ? (
           <View style={styles.progressTrack}>
@@ -81,7 +116,50 @@ function CourseRow({
   );
 }
 
-function CertRow({ course: c, onPress }: { course: Course; onPress: () => void }) {
+function FeaturedCard({
+  course: c,
+  onPress,
+  t,
+}: {
+  course: AcademiaListCourse;
+  onPress: () => void;
+  t: (k: string) => string;
+}) {
+  const lvl = levelStyle(c.level);
+  return (
+    <Pressable onPress={onPress} style={styles.featuredCard}>
+      <View style={styles.featuredThumb}>
+        {c.image ? (
+          <Image source={{ uri: c.image }} style={styles.featuredImg} resizeMode="cover" />
+        ) : (
+          <Text style={styles.featuredEmoji}>{c.icon}</Text>
+        )}
+      </View>
+      <Text style={styles.featuredTitle} numberOfLines={2}>
+        {c.title}
+      </Text>
+      {c.instructorName ? (
+        <Text style={styles.featuredInstructor} numberOfLines={1}>
+          {c.instructorName}
+        </Text>
+      ) : null}
+      <Text style={styles.featuredMeta}>
+        {c.modules} {t("academia.modules")} · {c.duration}
+      </Text>
+      <View style={[styles.levelBadge, { backgroundColor: lvl.bg, alignSelf: "flex-start" }]}>
+        <Text style={[styles.levelText, { color: lvl.text }]}>{c.level}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function CertRow({
+  course: c,
+  onPress,
+}: {
+  course: AcademiaListCourse;
+  onPress: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={styles.certRow}>
       <View style={styles.certIcon}>
@@ -110,13 +188,16 @@ export function AcademiaScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const scrollPadding = useTabScrollPadding();
-  const { data: courses = [] } = useCourses();
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>();
+  const { data: courses = [], isLoading } = useCourses(categoryFilter);
+  const { data: featured = [] } = useFeaturedCourses();
   const [subOpen, setSubOpen] = useState(false);
-  const [certPreview, setCertPreview] = useState<Course | null>(null);
+  const [certPreview, setCertPreview] = useState<AcademiaListCourse | null>(null);
 
   const inProgress = courses.filter((c) => c.progress > 0 && c.progress < 100);
   const done = courses.filter((c) => c.progress === 100);
   const others = courses.filter((c) => c.progress === 0);
+  const showFeatured = !categoryFilter && featured.length > 0;
 
   return (
     <TabScreen>
@@ -134,7 +215,9 @@ export function AcademiaScreen() {
             <Text style={styles.xpSub}>{t("academia.xpDisplay")}</Text>
           </View>
           <View style={styles.xpRight}>
-            <Text style={styles.xpCount}>2/6</Text>
+            <Text style={styles.xpCount}>
+              {done.length}/{Math.max(courses.length, 1)}
+            </Text>
             <Text style={styles.xpCountLabel}>{t("academia.inProgressShort")}</Text>
           </View>
         </View>
@@ -146,6 +229,55 @@ export function AcademiaScreen() {
             <Text style={styles.premiumBtnText}>Voir</Text>
           </Pressable>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+        >
+          {CATEGORIES.map((cat) => {
+            const active = categoryFilter === cat.key;
+            return (
+              <Pressable
+                key={cat.labelKey}
+                onPress={() => setCategoryFilter(cat.key)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {t(cat.labelKey)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {isLoading ? (
+          <ActivityIndicator color={colors.green[700]} style={{ marginTop: spacing.lg }} />
+        ) : null}
+
+        {!isLoading && courses.length === 0 ? (
+          <Text style={styles.empty}>{t("academia.empty")}</Text>
+        ) : null}
+
+        {showFeatured ? (
+          <>
+            <Text style={styles.sectionLabel}>{t("academia.featured")}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.featuredRow}
+            >
+              {featured.map((c) => (
+                <FeaturedCard
+                  key={c.id}
+                  course={c}
+                  t={t}
+                  onPress={() => router.push(`/academia/${c.id}` as never)}
+                />
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
 
         {done.length > 0 ? (
           <>
@@ -174,7 +306,7 @@ export function AcademiaScreen() {
           </>
         ) : null}
 
-        <Text style={styles.sectionLabel}>{t("academia.catalogSection")}</Text>
+        <Text style={styles.sectionLabel}>{t("academia.allCourses")}</Text>
         <View style={styles.list}>
           {others.map((c) => (
             <CourseRow
@@ -277,6 +409,68 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FEF3C7",
   },
+  chips: { gap: 8, paddingVertical: 2 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.full,
+    backgroundColor: colors.gray[100],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  chipActive: {
+    backgroundColor: colors.green[700],
+    borderColor: colors.green[700],
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.gray[600],
+  },
+  chipTextActive: { color: colors.white },
+  empty: {
+    textAlign: "center",
+    color: colors.gray[500],
+    fontSize: 13,
+    marginTop: spacing.lg,
+    fontFamily: "NotoSans_400Regular",
+  },
+  featuredRow: { gap: 12, paddingBottom: 4 },
+  featuredCard: {
+    width: 260,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    gap: 6,
+  },
+  featuredThumb: {
+    height: 100,
+    borderRadius: radii.lg,
+    backgroundColor: colors.green[50],
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  featuredImg: { width: "100%", height: "100%" },
+  featuredEmoji: { fontSize: 40 },
+  featuredTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.gray[900],
+    fontFamily: "PlusJakartaSans_800ExtraBold",
+  },
+  featuredInstructor: {
+    fontSize: 11,
+    color: colors.gray[500],
+    fontFamily: "NotoSans_400Regular",
+  },
+  featuredMeta: {
+    fontSize: 11,
+    color: colors.gray[500],
+  },
   sectionLabel: {
     fontSize: 10,
     fontWeight: "700",
@@ -318,6 +512,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.gray[900],
     fontFamily: "PlusJakartaSans_700Bold",
+  },
+  rowInstructor: {
+    fontSize: 10,
+    color: colors.gray[500],
+    marginTop: 2,
   },
   rowMeta: { flexDirection: "row", alignItems: "center", marginTop: 4, flexWrap: "wrap" },
   rowMetaText: { fontSize: 10, color: colors.gray[500] },

@@ -15,12 +15,8 @@ import { ModulePlayerModal } from "@/components/academia/ModulePlayerModal";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import {
-  useCourseModules,
-  useCourses,
-  type Course,
-  type CourseModule,
-} from "@/hooks/useLocalData";
+import { useCourses, type AcademiaListCourse } from "@/hooks/useAcademia";
+import type { CourseModule } from "@/hooks/useLocalData";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 const USER_HAS_PREMIUM = false;
@@ -33,11 +29,14 @@ function moduleIcon(type: CourseModule["type"]): keyof typeof Ionicons.glyphMap 
 
 export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   const insets = useSafeAreaInsets();
-  const { data: courses = [] } = useCourses();
-  const course = courses.find((c) => c.id === courseId) ?? courses[0];
-  const { data: mods = [] } = useCourseModules(course?.id);
+  const { data: courses = [], isLoading } = useCourses();
+  const course: AcademiaListCourse | undefined =
+    courses.find((c) => c.id === courseId) ?? courses[0];
+  // Modules live — S5-03 ; placeholder vide pour la navigation liste → détail
+  const mods: CourseModule[] = [];
 
-  const initialDone = Math.round((course.progress / 100) * course.modules);
+  const moduleCount = course?.modules ?? 1;
+  const initialDone = course ? Math.round((course.progress / 100) * moduleCount) : 0;
   const [completedSet, setCompletedSet] = useState<Set<number>>(
     () => new Set(Array.from({ length: initialDone }, (_, i) => i))
   );
@@ -45,8 +44,20 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   const [subOpen, setSubOpen] = useState(false);
   const [certOpen, setCertOpen] = useState(false);
 
-  const progress = Math.round((completedSet.size / course.modules) * 100);
-  const isFullyComplete = completedSet.size >= course.modules;
+  if (isLoading || !course) {
+    return (
+      <View style={styles.root} testID="course-detail-screen">
+        <StackHeader title="Academia" />
+        <Text style={{ padding: spacing.lg, color: colors.gray[500] }}>
+          {isLoading ? "Chargement…" : "Cours introuvable"}
+        </Text>
+      </View>
+    );
+  }
+
+  const progress =
+    moduleCount > 0 ? Math.round((completedSet.size / moduleCount) * 100) : 0;
+  const isFullyComplete = mods.length > 0 && completedSet.size >= mods.length;
   const ctaLabel = progress === 0 ? "Commencer" : progress === 100 ? "Revoir" : "Continuer";
 
   const isLocked = (idx: number) =>
@@ -70,6 +81,7 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
   };
 
   const activeMod = playing !== null ? mods[playing] : null;
+  const heroImage = course.image;
 
   return (
     <View style={styles.root} testID="course-detail-screen">
@@ -80,23 +92,28 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 72 }}
       >
         <View style={styles.hero}>
-          {course.heroImage ? (
-            <ImageBackground source={{ uri: course.heroImage }} style={styles.heroBg} imageStyle={styles.heroBgImg}>
+          {heroImage ? (
+            <ImageBackground source={{ uri: heroImage }} style={styles.heroBg} imageStyle={styles.heroBgImg}>
               <View style={styles.heroOverlay} />
             </ImageBackground>
           ) : null}
           <View style={styles.heroContent}>
             <View style={styles.heroIconWrap}>
-              {course.heroImage ? (
-                <Image source={{ uri: course.heroImage }} style={styles.heroPhoto} resizeMode="cover" />
+              {heroImage ? (
+                <Image source={{ uri: heroImage }} style={styles.heroPhoto} resizeMode="cover" />
               ) : (
                 <Text style={styles.heroIcon}>{course.icon}</Text>
               )}
-              {!course.heroImage ? null : (
+              {!heroImage ? null : (
                 <Text style={[styles.heroIcon, styles.heroIconOverlay]}>{course.icon}</Text>
               )}
             </View>
           <Text style={styles.heroTitle}>{course.title}</Text>
+          {course.instructorName ? (
+            <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 6 }}>
+              {course.instructorName}
+            </Text>
+          ) : null}
           <View style={styles.heroMeta}>
             <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
             <Text style={styles.heroMetaText}> {course.duration}</Text>
@@ -152,6 +169,11 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
 
         <Text style={styles.sectionLabel}>Programme</Text>
         <View style={[styles.moduleList, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
+          {mods.length === 0 ? (
+            <Text style={{ color: colors.gray[500], fontSize: 13, paddingVertical: spacing.md }}>
+              Les modules seront disponibles bientôt.
+            </Text>
+          ) : null}
           {mods.map((mod, i) => {
             const done = completedSet.has(i);
             const locked = isLocked(i);
@@ -216,14 +238,13 @@ export function CourseDetailScreen({ courseId }: { courseId?: string }) {
           })}
         </View>
 
-        {course.instructor ? (
+        {course.instructorName ? (
           <>
             <Text style={styles.sectionLabel}>Instructeur</Text>
             <View style={[styles.instructorCard, { marginHorizontal: SCREEN_HORIZONTAL_PADDING }]}>
-              <Image source={{ uri: course.instructor.image }} style={styles.instructorPhoto} />
               <View style={styles.instructorBody}>
-                <Text style={styles.instructorName}>{course.instructor.name}</Text>
-                <Text style={styles.instructorTitle}>{course.instructor.title}</Text>
+                <Text style={styles.instructorName}>{course.instructorName}</Text>
+                <Text style={styles.instructorTitle}>{course.category}</Text>
               </View>
             </View>
           </>
