@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { farmers as MOCK_FARMERS, type Farmer } from "@/data/mock";
+import {
+  agentFarmers as MOCK_AGENT_FARMERS,
+  farmers as MOCK_FARMERS,
+  type AgentFarmerCard,
+  type Farmer,
+} from "@/data/mock";
+import { useAuth } from "@/hooks/useAuth";
 import { functions, isDevMode } from "@/lib/firebase";
 import { createFinancingApplication } from "@/services/actions.service";
 
-export type { Farmer };
+export type { Farmer, AgentFarmerCard };
 
 /** Shape renvoyée par les Cloud Functions getFarmers / getFarmer */
 export interface FarmerListing {
@@ -143,5 +149,74 @@ export function useCreateFinancingApplication() {
       void qc.invalidateQueries({ queryKey: ["my-financing"] });
       void qc.invalidateQueries({ queryKey: ["userProfile"] });
     },
+  });
+}
+
+function daysUntil(ts?: { seconds: number } | number | string | null): number {
+  if (!ts) return 30;
+  const ms =
+    typeof ts === "object" && ts && "seconds" in ts
+      ? ts.seconds * 1000
+      : typeof ts === "number"
+        ? ts
+        : Date.parse(String(ts));
+  if (!Number.isFinite(ms)) return 30;
+  return Math.max(0, Math.ceil((ms - Date.now()) / 86_400_000));
+}
+
+function mapFinancingStatusToAgentStatus(
+  status?: string,
+): AgentFarmerCard["status"] {
+  if (status === "pending") return "attention";
+  if (status === "approved" || status === "active" || status === "completed") return "ok";
+  if (status === "urgent" || status === "attention" || status === "ok") {
+    return status;
+  }
+  return "ok";
+}
+
+/** Normalise un doc `farmers` (CF getAgentFarmers) vers la carte UI agent */
+export function normalizeAgentFarmerCard(raw: Record<string, unknown>): AgentFarmerCard {
+  const harvest = raw.nextHarvestDate as { seconds: number } | number | string | null | undefined;
+  return {
+    id: String(raw.id ?? ""),
+    name: String(raw.name ?? ""),
+    crop: String(raw.cropType ?? raw.crop ?? ""),
+    region: String(raw.region ?? raw.location ?? ""),
+    stage: String(raw.growthStage ?? raw.stage ?? "Suivi"),
+    status: mapFinancingStatusToAgentStatus(
+      typeof raw.agentStatus === "string"
+        ? raw.agentStatus
+        : typeof raw.status === "string"
+          ? raw.status
+          : undefined,
+    ),
+    lastVisit: String(raw.lastVisit ?? "—"),
+    daysToHarvest: Number(raw.daysToHarvest ?? daysUntil(harvest)),
+    surfaceHa: Number(raw.farmSizeHa ?? raw.surfaceHa ?? raw.surface ?? 0),
+  };
+}
+
+/** Agriculteurs assignés à l’agent connecté (`getAgentFarmers`) */
+export function useAgentFarmers() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["agent-farmers", user?.uid],
+    enabled: Boolean(user?.uid) || isDevMode(),
+    queryFn: async (): Promise<AgentFarmerCard[]> => {
+      if (isDevMode()) return MOCK_AGENT_FARMERS;
+      if (!user?.uid) return [];
+      const result = await httpsCallable<
+        Record<string, never>,
+        { farmers: Record<string, unknown>[] }
+      >(
+        functions,
+        "getAgentFarmers",
+      )({});
+      return (result.data.farmers ?? []).map((r) =>
+        normalizeAgentFarmerCard({ ...r, id: r.id ?? "" }),
+      );
+    },
+    staleTime: 60_000,
   });
 }

@@ -24,6 +24,7 @@ import {
   submitAgentReport,
 } from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CONDITIONS = [
   { v: 1, label: "Très mauvais", color: "#EF4444" },
@@ -179,8 +180,9 @@ function SuccessView({
 
 function AgentReportForm() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { userProfile } = useAuth();
-  const { data: agentFarmers = [] } = useAgentFarmers();
+  const { data: agentFarmers = [], isLoading: agentFarmersLoading } = useAgentFarmers();
   const { data: financingFarmers = [] } = useFarmers();
   const agentName = userProfile?.displayName || "Patrick Kadima";
 
@@ -242,6 +244,7 @@ function AgentReportForm() {
           additionalNeedUsd: additionalNeeds ? Number(additionalNeeds) : undefined,
           nextVisitDate: nextVisit || undefined,
         });
+        void qc.invalidateQueries({ queryKey: ["agent-farmers"] });
       }
       setSubmitted(true);
     } catch (err) {
@@ -271,6 +274,14 @@ function AgentReportForm() {
       <SectionHeader n={1} label="Identification de la visite" icon="clipboard-outline" />
       <FieldLabel>Agriculteur visité</FieldLabel>
       <View style={styles.farmerList}>
+        {agentFarmersLoading && farmerOptions.length === 0 ? (
+          <Text style={{ color: colors.gray[500], fontSize: 13 }}>Chargement des agriculteurs…</Text>
+        ) : null}
+        {!agentFarmersLoading && farmerOptions.length === 0 ? (
+          <Text style={{ color: colors.gray[500], fontSize: 13 }}>
+            Aucun agriculteur assigné pour le moment.
+          </Text>
+        ) : null}
         {farmerOptions.map((f) => (
           <Pressable
             key={f.id}
