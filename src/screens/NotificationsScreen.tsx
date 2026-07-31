@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,10 +9,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
-import { useNotifications, type Notification } from "@/hooks/useLocalData";
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+  type Notification,
+} from "@/hooks/useNotifications";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { colors, radii, spacing } from "@/theme";
 
 const KIND_META: Record<
@@ -25,13 +34,13 @@ const KIND_META: Record<
 };
 
 export function NotificationsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { data: initialNotifs = [] } = useNotifications();
-  const [items, setItems] = useState<Notification[]>([]);
+  const { data: items = [], isLoading } = useNotifications();
+  const markRead = useMarkNotificationRead();
+  const markAll = useMarkAllNotificationsRead();
+  const { permission, enablePush } = usePushNotifications();
 
-  useEffect(() => {
-    setItems(initialNotifs);
-  }, [initialNotifs]);
   const unread = items.filter((n) => !n.read).length;
 
   const grouped = useMemo(() => {
@@ -43,26 +52,54 @@ export function NotificationsScreen() {
     return map;
   }, [items]);
 
-  const markAllRead = () => setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-  const markRead = (id: string) =>
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const onEnablePush = async () => {
+    const status = await enablePush();
+    if (status === "granted") {
+      Alert.alert("Mombongo", t("notifications.enabled"));
+    } else if (status === "denied") {
+      Alert.alert("Mombongo", t("notifications.denied"));
+    } else {
+      Alert.alert("Mombongo", t("notifications.unavailable"));
+    }
+  };
 
   return (
     <View style={styles.root} testID="notifications-screen">
-      <StackHeader title="Notifications" />
+      <StackHeader title={t("notifications.title")} />
+
+      {permission !== "granted" ? (
+        <Pressable
+          onPress={() => void onEnablePush()}
+          style={styles.enableBanner}
+          testID="notification-enable-btn"
+        >
+          <Ionicons name="notifications-outline" size={18} color={colors.amber[900]} />
+          <Text style={styles.enableText}>{t("notifications.enable")}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.amber[900]} />
+        </Pressable>
+      ) : (
+        <View style={styles.enabledBanner} testID="notification-bell">
+          <Ionicons name="notifications" size={16} color={colors.green[700]} />
+          <Text style={styles.enabledText}>{t("notifications.enabled")}</Text>
+        </View>
+      )}
 
       <View style={styles.toolbar}>
         {unread > 0 ? (
           <Text style={styles.unreadText}>
-            {unread} non lue{unread > 1 ? "s" : ""}
+            {t("notifications.unreadCount", { count: unread })}
           </Text>
         ) : (
-          <Text style={styles.unreadText}>Tout est lu</Text>
+          <Text style={styles.unreadText}>{t("notifications.allRead")}</Text>
         )}
         {unread > 0 ? (
-          <Pressable onPress={markAllRead} style={styles.markAllBtn}>
+          <Pressable
+            onPress={() => markAll.mutate(items.map((n) => n.id))}
+            style={styles.markAllBtn}
+            disabled={markAll.isPending}
+          >
             <Ionicons name="checkmark-done" size={14} color={colors.gray[600]} />
-            <Text style={styles.markAllText}>Tout lire</Text>
+            <Text style={styles.markAllText}>{t("notifications.markAll")}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -73,6 +110,10 @@ export function NotificationsScreen() {
           paddingBottom: Math.max(insets.bottom, 16) + spacing.lg,
         }}
       >
+        {isLoading ? (
+          <ActivityIndicator color={colors.green[700]} style={{ marginTop: spacing.xl }} />
+        ) : null}
+
         {Object.entries(grouped).map(([date, group]) => (
           <View key={date}>
             <Text style={styles.dateLabel}>{date}</Text>
@@ -81,7 +122,9 @@ export function NotificationsScreen() {
               return (
                 <Pressable
                   key={n.id}
-                  onPress={() => markRead(n.id)}
+                  onPress={() => {
+                    if (!n.read) markRead.mutate(n.id);
+                  }}
                   style={[styles.item, !n.read && styles.itemUnread]}
                 >
                   <View style={[styles.itemIcon, { backgroundColor: meta.bg }]}>
@@ -89,7 +132,10 @@ export function NotificationsScreen() {
                   </View>
                   <View style={styles.itemBody}>
                     <View style={styles.itemTop}>
-                      <Text style={[styles.itemTitle, !n.read && styles.itemTitleUnread]} numberOfLines={2}>
+                      <Text
+                        style={[styles.itemTitle, !n.read && styles.itemTitleUnread]}
+                        numberOfLines={2}
+                      >
                         {n.title}
                       </Text>
                       <Text style={styles.itemTime}>{n.time}</Text>
@@ -105,14 +151,19 @@ export function NotificationsScreen() {
           </View>
         ))}
 
-        {items.length === 0 ? (
+        {!isLoading && items.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="notifications-off-outline" size={40} color={colors.gray[400]} style={{ opacity: 0.4 }} />
-            <Text style={styles.emptyText}>Aucune notification</Text>
+            <Ionicons
+              name="notifications-off-outline"
+              size={40}
+              color={colors.gray[400]}
+              style={{ opacity: 0.4 }}
+            />
+            <Text style={styles.emptyText}>{t("notifications.empty")}</Text>
           </View>
         ) : null}
 
-        <Text style={styles.footer}>Les notifications sont conservées 30 jours</Text>
+        <Text style={styles.footer}>{t("notifications.retention")}</Text>
       </ScrollView>
     </View>
   );
@@ -120,6 +171,37 @@ export function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.appBackground },
+  enableBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: SCREEN_HORIZONTAL_PADDING,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.amber[50],
+    borderWidth: 1,
+    borderColor: colors.amber[100],
+    borderRadius: radii.xl,
+  },
+  enableText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.amber[900],
+  },
+  enabledBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: SCREEN_HORIZONTAL_PADDING,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.green[50],
+    borderRadius: radii.lg,
+  },
+  enabledText: { fontSize: 12, fontWeight: "600", color: colors.green[700] },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
@@ -129,6 +211,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
     backgroundColor: colors.white,
+    marginTop: spacing.sm,
   },
   unreadText: { fontSize: 12, color: colors.gray[500] },
   markAllBtn: {
