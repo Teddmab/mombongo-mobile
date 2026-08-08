@@ -8,14 +8,26 @@ import { useTabContentInsets } from "@/hooks/useSafeInsets";
 import { LoadingScreen } from "@/screens/LoadingScreen";
 import { TAB_BAR_HEIGHT } from "@/constants/layout";
 import { colors } from "@/theme";
+import { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { OnboardingScreen, ONBOARDING_STORAGE_KEY, addOnboardingResetListener } from "@/screens/OnboardingScreen";
 
 export default function TabsLayout() {
   const { t } = useTranslation();
   const { isAuthenticated, isLoading } = useAuth();
   const { bottomInset } = useTabContentInsets();
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
-  if (isLoading) return <LoadingScreen />;
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_STORAGE_KEY).then((val) => {
+      setShowOnboarding(val === null);
+    });
+    return addOnboardingResetListener(() => setShowOnboarding(true));
+  }, []);
+
+  if (isLoading || showOnboarding === null) return <LoadingScreen />;
   if (!isAuthenticated) return <Redirect href="/auth" />;
+  if (showOnboarding) return <OnboardingScreen onDone={() => setShowOnboarding(false)} />;
 
   return (
     <View style={styles.root}>
