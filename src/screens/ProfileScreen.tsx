@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { EditProfileModal } from "@/components/profile/ProfileModals";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
+import { resetOnboarding } from "@/screens/OnboardingScreen";
 import { DepositModal, WithdrawModal } from "@/components/wallet/WalletModals";
 import { TabScreen, useTabScrollPadding } from "@/components/shell/TabScreen";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
@@ -294,6 +295,11 @@ export function ProfileScreen() {
               icon: "help-circle-outline" as const,
               label: t("profile.help"),
               action: () => soon("Centre d'aide — bientôt disponible"),
+            },
+            {
+              icon: "play-circle-outline" as const,
+              label: "Revoir le tutoriel",
+              action: () => void resetOnboarding(),
             },
           ].map((item, idx, arr) => (
             <Pressable
