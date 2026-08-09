@@ -294,7 +294,7 @@ export function ProfileScreen() {
             {
               icon: "help-circle-outline" as const,
               label: t("profile.help"),
-              action: () => soon("Centre d'aide — bientôt disponible"),
+              action: () => router.push("/aide" as never),
             },
             {
               icon: "play-circle-outline" as const,
