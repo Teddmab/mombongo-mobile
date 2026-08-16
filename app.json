@@ -4,6 +4,7 @@
     "slug": "mombongo",
     "owner": "afrotouch-ou",
     "version": "1.0.0",
+    "description": "Finance agricole — investissement, crédit et marché pour l'Afrique",
     "orientation": "portrait",
     "scheme": "mombongo",
     "userInterfaceStyle": "light",
@@ -15,7 +16,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mombongo.mobile"
+      "bundleIdentifier": "com.mombongo.mobile",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +27,7 @@
       },
       "package": "com.mombongo.mobile",
       "versionCode": 2,
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "NOTIFICATIONS", "INTERNET", "VIBRATE"],
       "googleServicesFile": "./google-services.json"
     },
     "web": {
