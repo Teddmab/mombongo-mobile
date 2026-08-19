@@ -1,12 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { products as MOCK_PRODUCTS, type Category, type Product } from "@/data/mock";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
-export type { Product, Category };
+export type Category = "agriculture" | "logistique" | "export";
+
+export interface Product {
+  id: string;
+  name: string;
+  icon: string;
+  minInvest: number;
+  duration: number;
+  roi: number;
+  location: string;
+  category: Category;
+  stock: number;
+  unit: string;
+  image?: string;
+  available: boolean;
+  description?: string;
+  farmer?: string;
+}
 
 async function fetchProducts(): Promise<Product[]> {
-  if (isDevMode()) return MOCK_PRODUCTS;
   const call = httpsCallable<Record<string, never>, { products: Product[] }>(
     functions,
     "getProducts",

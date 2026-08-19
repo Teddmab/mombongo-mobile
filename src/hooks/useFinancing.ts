@@ -1,9 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { farmers as MOCK_FARMERS, type Farmer } from "@/data/mock";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
-export type { Farmer };
+export interface Farmer {
+  id: string;
+  name: string;
+  location: string;
+  surface: number;
+  crops: string[];
+  experience: number;
+  trustScore: number;
+  needed: number;
+  raised: number;
+  story: string;
+  avatar: string;
+  image?: string;
+}
 
 /** Shape renvoyée par les Cloud Functions getFarmers / getFarmer */
 export interface FarmerListing {
@@ -45,23 +57,6 @@ export function listingToFarmer(f: FarmerListing): Farmer {
   };
 }
 
-function mockToListing(f: (typeof MOCK_FARMERS)[number]): FarmerListing {
-  return {
-    id: f.id,
-    name: f.name,
-    region: f.location,
-    cropType: f.crops[0] ?? "Cultures variées",
-    farmSizeHa: f.surface,
-    requestedAmountUsd: f.needed,
-    disbursedAmountUsd: f.raised,
-    status: f.raised >= f.needed ? "completed" : f.raised > 0 ? "active" : "approved",
-    photoUrl: f.image,
-    experienceYears: f.experience,
-    trustScore: f.trustScore,
-    story: f.story,
-  };
-}
-
 function normalizeListing(raw: Record<string, unknown>): FarmerListing {
   return {
     id: String(raw.id ?? ""),
@@ -84,16 +79,6 @@ export function useFarmers(filters?: { cropType?: string; region?: string }) {
   return useQuery({
     queryKey: ["farmers", filters],
     queryFn: async (): Promise<Farmer[]> => {
-      if (isDevMode()) {
-        let results = MOCK_FARMERS.map(mockToListing);
-        if (filters?.cropType) {
-          results = results.filter((f) => f.cropType === filters.cropType);
-        }
-        if (filters?.region) {
-          results = results.filter((f) => f.region.includes(filters.region!));
-        }
-        return results.map(listingToFarmer);
-      }
       const result = await httpsCallable<
         typeof filters,
         { farmers: Record<string, unknown>[] }
@@ -112,10 +97,6 @@ export function useFarmer(id: string | undefined) {
     queryKey: ["farmer", id],
     enabled: Boolean(id),
     queryFn: async (): Promise<Farmer | null> => {
-      if (isDevMode()) {
-        const mock = MOCK_FARMERS.find((f) => f.id === id);
-        return mock ? listingToFarmer(mockToListing(mock)) : null;
-      }
       const result = await httpsCallable<
         { id: string },
         { farmer: Record<string, unknown> | null }

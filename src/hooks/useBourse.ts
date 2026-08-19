@@ -1,14 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import {
-  bourseOpportunities as MOCK_OPPS,
-  bourseTicker as MOCK_TICKER,
-  type BourseOpportunity,
-  type BourseTicker,
-} from "@/data/mock";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
-export type { BourseOpportunity, BourseTicker };
+export interface BourseOpportunity {
+  id: string;
+  title: string;
+  type: "transport" | "stockage" | "transformation";
+  origin: string;
+  destination?: string;
+  volume: string;
+  price: string;
+  commission: number;
+  duration: string;
+  spotsLeft: number;
+  spotsTotal: number;
+}
+
+export interface BourseTicker {
+  symbol: string;
+  price: string;
+  change: number;
+}
 
 function normalizeOpportunity(raw: Record<string, unknown>): BourseOpportunity {
   return {
@@ -38,7 +50,6 @@ export function useBourseOpportunities() {
   return useQuery({
     queryKey: ["bourse-opportunities"],
     queryFn: async (): Promise<BourseOpportunity[]> => {
-      if (isDevMode()) return MOCK_OPPS;
       const call = httpsCallable<Record<string, never>, { opportunities: Record<string, unknown>[] }>(
         functions,
         "getBourseOpportunities",
@@ -54,7 +65,6 @@ export function useBoursePrices() {
   return useQuery({
     queryKey: ["bourse-prices"],
     queryFn: async (): Promise<BourseTicker[]> => {
-      if (isDevMode()) return MOCK_TICKER;
       const call = httpsCallable<Record<string, never>, { prices: Record<string, unknown>[] }>(
         functions,
         "getBoursePrices",
@@ -67,7 +77,6 @@ export function useBoursePrices() {
   });
 }
 
-/** Alias UI — même données que useBoursePrices */
 export function useBourseTicker() {
   return useBoursePrices();
 }
@@ -76,7 +85,6 @@ export function useBourseOpportunity(id: string | undefined) {
   return useQuery({
     queryKey: ["bourse-opportunity", id],
     queryFn: async (): Promise<BourseOpportunity | null> => {
-      if (isDevMode()) return MOCK_OPPS.find((o) => o.id === id) ?? MOCK_OPPS[0] ?? null;
       if (!id) return null;
       const call = httpsCallable<{ id: string }, { opportunity: Record<string, unknown> | null }>(
         functions,

@@ -1,12 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { investments as MOCK_INVESTMENTS, type Investment } from "@/data/mock";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
-export type { Investment };
+export interface Investment {
+  id: string;
+  productId: string;
+  name: string;
+  location: string;
+  amount: number;
+  currency: "USD" | "FC";
+  roi: number;
+  progress: number;
+  daysLeft: number;
+  harvestDate: string;
+  badge?: "BOURSE" | "EXPORT";
+  meta?: string;
+  category?: string;
+}
 
 async function fetchInvestments(): Promise<Investment[]> {
-  if (isDevMode()) return MOCK_INVESTMENTS;
   const call = httpsCallable<Record<string, never>, { investments: Investment[] }>(
     functions,
     "getInvestments",

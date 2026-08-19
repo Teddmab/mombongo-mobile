@@ -14,7 +14,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { isDevMode } from "@/lib/dev";
 import {
   getDepositStatus,
   getWithdrawStatus,
@@ -141,13 +140,6 @@ function WalletModalShell({
     setStep("waiting");
     setLoading(true);
     try {
-      if (isDevMode()) {
-        await new Promise((r) => setTimeout(r, 1200));
-        setStep("success");
-        onSuccess(finalAmount);
-        return;
-      }
-
       if (isDeposit) {
         const data = await initiateDeposit({
           amountUsd: finalAmount,

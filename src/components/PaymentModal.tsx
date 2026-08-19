@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { isDevMode } from "@/lib/dev";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export type PaymentType = "invest" | "reserve" | "support" | "deposit" | "withdraw" | "subscribe";
@@ -158,10 +157,6 @@ export function PaymentModal({
   };
 
   const pay = () => {
-    if (!isDevMode()) {
-      Alert.alert("Mombongo", "Connexion Firebase requise pour les paiements.");
-      return;
-    }
     setStep("processing");
   };
 
