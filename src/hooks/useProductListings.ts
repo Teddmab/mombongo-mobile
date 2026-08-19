@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { myListings as MOCK_MARKET_LISTINGS } from "@/data/mock";
 import { functions } from "@/lib/firebase";
-import { isDevMode } from "@/lib/dev";
 
 export interface ProductListing {
   id: string;
@@ -89,69 +87,10 @@ export interface BourseContract {
   createdAt: string;
 }
 
-const MOCK_LISTINGS: ProductListing[] = MOCK_MARKET_LISTINGS.map((l) => ({
-  id: l.id,
-  sellerId: "mock-uid",
-  sellerName: "Jean Agriculteur",
-  sellerRole: "farmer",
-  commodity: l.name,
-  quantityKg: l.quantity * 15,
-  quality: "A",
-  province: "Kongo Central",
-  territory: l.region,
-  pricePerKgCdf: l.pricePerUnitFC,
-  availableFrom: new Date().toISOString().slice(0, 10),
-  availableUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-  description: "",
-  photoUrls: [],
-  status: l.status === "vendu" ? "sold" : l.status === "en vente" ? "active" : "active",
-  createdAt: new Date().toISOString(),
-}));
-
-const MOCK_MARKET: ProductListing[] = [
-  {
-    id: "ml-m1",
-    sellerId: "u2",
-    sellerName: "Marie Lutumba",
-    sellerRole: "farmer",
-    commodity: "Tomates",
-    quantityKg: 500,
-    quality: "A",
-    province: "Kongo Central",
-    territory: "Matadi",
-    pricePerKgCdf: 1200,
-    availableFrom: new Date().toISOString().slice(0, 10),
-    availableUntil: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10),
-    description: "Tomates fraîches",
-    photoUrls: [],
-    status: "active",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "ml-m2",
-    sellerId: "u3",
-    sellerName: "Pierre Kabila",
-    sellerRole: "farmer",
-    commodity: "Manioc",
-    quantityKg: 1000,
-    quality: "B",
-    province: "Kinshasa",
-    territory: "Maluku",
-    pricePerKgCdf: 320,
-    availableFrom: new Date().toISOString().slice(0, 10),
-    availableUntil: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-    description: "",
-    photoUrls: [],
-    status: "active",
-    createdAt: new Date().toISOString(),
-  },
-];
-
 export function useProductListings(filters?: { commodity?: string; province?: string }) {
   return useQuery({
     queryKey: ["product-listings", filters],
     queryFn: async (): Promise<ProductListing[]> => {
-      if (isDevMode()) return MOCK_MARKET;
       const call = httpsCallable<typeof filters, { listings: ProductListing[] }>(
         functions,
         "getProductListings",
@@ -166,7 +105,6 @@ export function useMyProductListings() {
   return useQuery({
     queryKey: ["my-product-listings"],
     queryFn: async (): Promise<ProductListing[]> => {
-      if (isDevMode()) return MOCK_LISTINGS;
       const call = httpsCallable<Record<string, never>, { listings: ProductListing[] }>(
         functions,
         "getMyProductListings",
@@ -181,8 +119,7 @@ export function useBuyerOrders(filters?: { commodity?: string }) {
   return useQuery({
     queryKey: ["buyer-orders", filters],
     queryFn: async (): Promise<BuyerOrder[]> => {
-      if (isDevMode()) return [];
-      const call = httpsCallable<typeof filters, { orders: BuyerOrder[] }>(
+const call = httpsCallable<typeof filters, { orders: BuyerOrder[] }>(
         functions,
         "getBuyerOrders",
       );
@@ -196,8 +133,7 @@ export function useMyMatches(role: "buyer" | "seller") {
   return useQuery({
     queryKey: ["my-matches", role],
     queryFn: async (): Promise<BourseMatch[]> => {
-      if (isDevMode()) return [];
-      const call = httpsCallable<{ role: string }, { matches: BourseMatch[] }>(
+const call = httpsCallable<{ role: string }, { matches: BourseMatch[] }>(
         functions,
         "getMatches",
       );
@@ -212,8 +148,7 @@ export function useMyContracts() {
   return useQuery({
     queryKey: ["my-contracts"],
     queryFn: async (): Promise<BourseContract[]> => {
-      if (isDevMode()) return [];
-      const call = httpsCallable<Record<string, never>, { contracts: BourseContract[] }>(
+const call = httpsCallable<Record<string, never>, { contracts: BourseContract[] }>(
         functions,
         "getMyContracts",
       );
@@ -237,7 +172,6 @@ export function useCreateProductListing() {
       availableUntil: string;
       description?: string;
     }) => {
-      if (isDevMode()) return { listingId: `mock-${Date.now()}` };
       const call = httpsCallable<typeof payload, { listingId: string }>(
         functions,
         "createProductListing",
@@ -263,7 +197,6 @@ export function useCreateBuyerOrder() {
       neededBy: string;
       description?: string;
     }) => {
-      if (isDevMode()) return { orderId: `mock-${Date.now()}`, matchCount: 2 };
       const call = httpsCallable<typeof payload, { orderId: string; matchCount: number }>(
         functions,
         "createBuyerOrder",
@@ -285,7 +218,6 @@ export function useProposePrice() {
       proposedPricePerKgCdf: number;
       message?: string;
     }) => {
-      if (isDevMode()) return { negotiationId: "mock-neg", success: true };
       const call = httpsCallable<typeof payload, { negotiationId: string }>(
         functions,
         "proposePrice",
@@ -300,7 +232,6 @@ export function useAcceptPrice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { matchId: string; negotiationId?: string }) => {
-      if (isDevMode()) return { ok: true, success: true };
       const call = httpsCallable<typeof payload, { ok: boolean }>(functions, "acceptPrice");
       return (await call(payload)).data;
     },
@@ -312,7 +243,6 @@ export function useGenerateContract() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { matchId: string }) => {
-      if (isDevMode()) return { contractId: `mock-c-${Date.now()}` };
       const call = httpsCallable<typeof payload, { contractId: string }>(
         functions,
         "generateContract",
@@ -330,7 +260,6 @@ export function useSignContract() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { contractId: string }) => {
-      if (isDevMode()) return { status: "active" as const };
       const call = httpsCallable<typeof payload, { status: string }>(functions, "signContract");
       return (await call(payload)).data;
     },
@@ -342,7 +271,6 @@ export function useFundEscrow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { contractId: string; method: "wallet" | "mobile_money" }) => {
-      if (isDevMode()) return { success: true, escrowStatus: "funded" as const };
       const call = httpsCallable<typeof payload, { success: boolean; escrowStatus: string }>(
         functions,
         "fundEscrow",
@@ -357,8 +285,7 @@ export function useConfirmShipment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { contractId: string; shipmentNote?: string }) => {
-      if (isDevMode()) return { success: true, status: "shipped" };
-      const call = httpsCallable<typeof payload, { success: boolean }>(
+const call = httpsCallable<typeof payload, { success: boolean }>(
         functions,
         "confirmShipment",
       );
@@ -372,7 +299,6 @@ export function useConfirmDelivery() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { contractId: string }) => {
-      if (isDevMode()) return { success: true, status: "fulfilled" };
       const call = httpsCallable<typeof payload, { success: boolean }>(
         functions,
         "confirmDelivery",

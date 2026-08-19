@@ -135,12 +135,11 @@ const ROLE_WALLET: Record<
   },
 };
 
-const KIND_TX: Record<Transaction["kind"], { color: string; prefix: string }> = {
+const KIND_TX: Record<Transaction["type"], { color: string; prefix: string }> = {
   deposit: { color: colors.green[700], prefix: "+" },
-  profit: { color: colors.green[700], prefix: "+" },
+  return: { color: colors.green[700], prefix: "+" },
   investment: { color: colors.gray[900], prefix: "−" },
   withdrawal: { color: "#EA580C", prefix: "−" },
-  fee: { color: colors.gray[500], prefix: "−" },
 };
 
 function fmtBal(n: number) {
@@ -153,7 +152,7 @@ function roleLabelKey(role: Role): string {
 }
 
 function TxRow({ tx }: { tx: Transaction }) {
-  const meta = KIND_TX[tx.kind];
+  const meta = KIND_TX[tx.type];
   const amt =
     tx.currency === "USD"
       ? `$${tx.amount.toLocaleString()}`
@@ -162,7 +161,7 @@ function TxRow({ tx }: { tx: Transaction }) {
   return (
     <View style={styles.txRow}>
       <View style={styles.txBody}>
-        <Text style={styles.txLabel}>{tx.label}</Text>
+        <Text style={styles.txLabel}>{tx.description}</Text>
         <Text style={styles.txDate}>{tx.date}</Text>
       </View>
       <View style={styles.txRight}>

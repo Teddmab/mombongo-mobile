@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { MOCK_ACADEMIA_COURSES, MOCK_ACADEMIA_MODULES } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
 export interface AcademiaCourse {
   id: string;
@@ -151,11 +150,6 @@ export function useCourses(category?: string) {
   return useQuery({
     queryKey: ["courses", category],
     queryFn: async (): Promise<AcademiaListCourse[]> => {
-      if (isDevMode()) {
-        let list = [...MOCK_ACADEMIA_COURSES];
-        if (category) list = list.filter((c) => c.category === category);
-        return list.map(toAcademiaListCourse);
-      }
       const result = await httpsCallable<
         { category?: string },
         { courses: Record<string, unknown>[] }
@@ -182,10 +176,6 @@ export function useCourse(id: string | undefined) {
     queryKey: ["course", id],
     enabled: !!id,
     queryFn: async (): Promise<AcademiaListCourse | null> => {
-      if (isDevMode()) {
-        const found = MOCK_ACADEMIA_COURSES.find((c) => c.id === id);
-        return found ? toAcademiaListCourse(found) : null;
-      }
       const result = await httpsCallable<{ id: string }, { course: Record<string, unknown> | null }>(
         functions,
         "getCourse",
@@ -202,11 +192,6 @@ export function useCourseModules(courseId: string | undefined) {
     queryKey: ["modules", courseId],
     enabled: !!courseId,
     queryFn: async (): Promise<AcademiaModule[]> => {
-      if (isDevMode()) {
-        return MOCK_ACADEMIA_MODULES.filter((m) => m.courseId === courseId).sort(
-          (a, b) => a.order - b.order,
-        );
-      }
       const result = await httpsCallable<
         { courseId: string },
         { modules: Record<string, unknown>[] }
@@ -226,9 +211,8 @@ export function useMyEnrollment(courseId: string | undefined) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["enrollment", user?.uid, courseId],
-    enabled: !!courseId && (!!user?.uid || isDevMode()),
+    enabled: !!courseId && !!user?.uid,
     queryFn: async (): Promise<Enrollment | null> => {
-      if (isDevMode()) return null;
       if (!user?.uid) return null;
       const result = await httpsCallable<
         { courseId: string },
@@ -248,10 +232,6 @@ export function useEnrollCourse() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (courseId: string) => {
-      if (isDevMode()) {
-        await new Promise((r) => setTimeout(r, 400));
-        return { success: true, enrollmentId: `dev-enroll-${courseId}` };
-      }
       const result = await httpsCallable<
         { courseId: string },
         { success: boolean; enrollmentId: string }
@@ -261,23 +241,10 @@ export function useEnrollCourse() {
       )({ courseId });
       return result.data;
     },
-    onSuccess: (data, courseId) => {
-      const enrollment: Enrollment = {
-        id: data.enrollmentId,
-        userId: user?.uid ?? "dev",
-        courseId,
-        completedModules: [],
-        progressPct: 0,
-        enrolledAt: { seconds: Math.floor(Date.now() / 1000) },
-        completedAt: null,
-      };
-      // DEV: garder l’enrollment en cache (getMyEnrollment mock renvoie null)
-      qc.setQueryData(["enrollment", user?.uid, courseId], enrollment);
-      if (!isDevMode()) {
-        void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
-        void qc.invalidateQueries({ queryKey: ["course", courseId] });
-        void qc.invalidateQueries({ queryKey: ["courses"] });
-      }
+    onSuccess: (_data, courseId) => {
+      void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
+      void qc.invalidateQueries({ queryKey: ["course", courseId] });
+      void qc.invalidateQueries({ queryKey: ["courses"] });
     },
   });
 }
@@ -287,18 +254,6 @@ export function useMarkModuleComplete() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (payload: { courseId: string; moduleId: string }) => {
-      if (isDevMode()) {
-        await new Promise((r) => setTimeout(r, 400));
-        const mods = qc.getQueryData<AcademiaModule[]>(["modules", payload.courseId]) ?? [];
-        const prev = qc.getQueryData<Enrollment | null>([
-          "enrollment",
-          user?.uid,
-          payload.courseId,
-        ]);
-        const completed = [...new Set([...(prev?.completedModules ?? []), payload.moduleId])];
-        const progressPct = Math.round((completed.length / Math.max(mods.length, 1)) * 100);
-        return { progressPct, isCompleted: progressPct >= 100 };
-      }
       const result = await httpsCallable<
         { courseId: string; moduleId: string },
         { progressPct?: number; isCompleted?: boolean; success?: boolean }
@@ -311,25 +266,8 @@ export function useMarkModuleComplete() {
         isCompleted: Boolean(result.data.isCompleted),
       };
     },
-    onSuccess: (data, { courseId, moduleId }) => {
-      const key = ["enrollment", user?.uid, courseId] as const;
-      const prev = qc.getQueryData<Enrollment | null>(key);
-      const completed = [...new Set([...(prev?.completedModules ?? []), moduleId])];
-      const next: Enrollment = {
-        id: prev?.id ?? `dev-enroll-${courseId}`,
-        userId: prev?.userId ?? user?.uid ?? "dev",
-        courseId,
-        completedModules: completed,
-        progressPct: data.progressPct,
-        enrolledAt: prev?.enrolledAt ?? { seconds: Math.floor(Date.now() / 1000) },
-        completedAt: data.isCompleted
-          ? { seconds: Math.floor(Date.now() / 1000) }
-          : (prev?.completedAt ?? null),
-      };
-      qc.setQueryData(key, next);
-      if (!isDevMode()) {
-        void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
-      }
+    onSuccess: (_data, { courseId }) => {
+      void qc.invalidateQueries({ queryKey: ["enrollment", user?.uid, courseId] });
     },
   });
 }

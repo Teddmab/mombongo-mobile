@@ -1,18 +1,44 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import {
-  agentFarmers as MOCK_AGENT_FARMERS,
-  farmers as MOCK_FARMERS,
-  MOCK_CULTURAL_EVENTS,
-  type AgentFarmerCard,
-  type CulturalEvent,
-  type Farmer,
-} from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 import { createFinancingApplication } from "@/services/actions.service";
 
-export type { Farmer, AgentFarmerCard, CulturalEvent };
+export interface Farmer {
+  id: string;
+  name: string;
+  location: string;
+  surface: number;
+  crops: string[];
+  experience: number;
+  trustScore: number;
+  needed: number;
+  raised: number;
+  story: string;
+  avatar: string;
+  image?: string;
+}
+
+export interface AgentFarmerCard {
+  id: string;
+  name: string;
+  crop: string;
+  region: string;
+  stage: string;
+  status: "ok" | "attention" | "urgent";
+  lastVisit: string;
+  daysToHarvest: number;
+  surfaceHa: number;
+}
+
+export interface CulturalEvent {
+  id: string;
+  cropType: string;
+  eventType: "planting" | "harvest" | "fertilizing" | "irrigation";
+  monthStart: number;
+  monthEnd: number;
+  description: string;
+}
 
 /** Shape renvoyée par les Cloud Functions getFarmers / getFarmer */
 export interface FarmerListing {
@@ -54,23 +80,6 @@ export function listingToFarmer(f: FarmerListing): Farmer {
   };
 }
 
-function mockToListing(f: (typeof MOCK_FARMERS)[number]): FarmerListing {
-  return {
-    id: f.id,
-    name: f.name,
-    region: f.location,
-    cropType: f.crops[0] ?? "Cultures variées",
-    farmSizeHa: f.surface,
-    requestedAmountUsd: f.needed,
-    disbursedAmountUsd: f.raised,
-    status: f.raised >= f.needed ? "completed" : f.raised > 0 ? "active" : "approved",
-    photoUrl: f.image,
-    experienceYears: f.experience,
-    trustScore: f.trustScore,
-    story: f.story,
-  };
-}
-
 function normalizeListing(raw: Record<string, unknown>): FarmerListing {
   return {
     id: String(raw.id ?? ""),
@@ -93,16 +102,6 @@ export function useFarmers(filters?: { cropType?: string; region?: string }) {
   return useQuery({
     queryKey: ["farmers", filters],
     queryFn: async (): Promise<Farmer[]> => {
-      if (isDevMode()) {
-        let results = MOCK_FARMERS.map(mockToListing);
-        if (filters?.cropType) {
-          results = results.filter((f) => f.cropType === filters.cropType);
-        }
-        if (filters?.region) {
-          results = results.filter((f) => f.region.includes(filters.region!));
-        }
-        return results.map(listingToFarmer);
-      }
       const result = await httpsCallable<
         typeof filters,
         { farmers: Record<string, unknown>[] }
@@ -121,10 +120,6 @@ export function useFarmer(id: string | undefined) {
     queryKey: ["farmer", id],
     enabled: Boolean(id),
     queryFn: async (): Promise<Farmer | null> => {
-      if (isDevMode()) {
-        const mock = MOCK_FARMERS.find((f) => f.id === id);
-        return mock ? listingToFarmer(mockToListing(mock)) : null;
-      }
       const result = await httpsCallable<
         { id: string },
         { farmer: Record<string, unknown> | null }
@@ -199,14 +194,13 @@ export function normalizeAgentFarmerCard(raw: Record<string, unknown>): AgentFar
   };
 }
 
-/** Agriculteurs assignés à l’agent connecté (`getAgentFarmers`) */
+/** Agriculteurs assignés à l'agent connecté (`getAgentFarmers`) */
 export function useAgentFarmers() {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["agent-farmers", user?.uid],
-    enabled: Boolean(user?.uid) || isDevMode(),
+    enabled: Boolean(user?.uid),
     queryFn: async (): Promise<AgentFarmerCard[]> => {
-      if (isDevMode()) return MOCK_AGENT_FARMERS;
       if (!user?.uid) return [];
       const result = await httpsCallable<
         Record<string, never>,
@@ -243,11 +237,6 @@ export function useCulturalEvents(cropType?: string) {
   return useQuery({
     queryKey: ["cultural-events", cropType],
     queryFn: async (): Promise<CulturalEvent[]> => {
-      if (isDevMode()) {
-        let events = [...MOCK_CULTURAL_EVENTS];
-        if (cropType) events = events.filter((e) => e.cropType === cropType);
-        return events.slice().sort((a, b) => a.monthStart - b.monthStart);
-      }
       const result = await httpsCallable<
         { cropType?: string },
         { events: Record<string, unknown>[] }

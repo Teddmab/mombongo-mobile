@@ -20,7 +20,6 @@ import { useFullScreenInsets } from "@/hooks/useSafeInsets";
 import { useAuth } from "@/hooks/useAuth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { authService, AuthServiceError } from "@/services/auth.service";
-import { isDevMode } from "@/lib/dev";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 type Mode = "login" | "signup" | "forgot";
@@ -71,7 +70,7 @@ const ROLES: {
 export function AuthScreen() {
   const { t } = useTranslation();
   const { setRole, role } = useApp();
-  const { isAuthenticated, isLoading, signInDev } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const { top } = useFullScreenInsets();
   const insets = useSafeAreaInsets();
@@ -99,22 +98,12 @@ export function AuthScreen() {
     setSuccess(null);
   };
 
-  const afterAuth = async () => {
-    if (isDevMode()) {
-      await signInDev(role);
-    }
-    router.replace("/(tabs)/home");
-  };
-
   const handleLogin = async () => {
     setError(null);
     setLoading(true);
     try {
       await authService.signIn(email, pwd);
-      if (isDevMode()) {
-        await afterAuth();
-      }
-      // En production, onAuthStateChanged + useEffect isAuthenticated redirige
+      // onAuthStateChanged + useEffect isAuthenticated handles redirect
     } catch (e) {
       setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
     } finally {
@@ -127,9 +116,6 @@ export function AuthScreen() {
     setLoading(true);
     try {
       await authService.signUp(email, pwd, fullName, role);
-      if (isDevMode()) {
-        await afterAuth();
-      }
     } catch (e) {
       setError(e instanceof AuthServiceError ? e.userMessage : t("common.error"));
     } finally {

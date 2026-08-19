@@ -1,9 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { notifications as MOCK_NOTIFICATIONS, type Notification } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
 
-export type { Notification };
+export interface Notification {
+  id: string;
+  kind: "profit" | "opportunity" | "report" | "course" | "system";
+  title: string;
+  body: string;
+  time: string;
+  date: string;
+  read: boolean;
+}
 
 const READ_KEY_PREFIX = "mombongo.notif.readIds.";
 
@@ -40,8 +47,7 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications", user?.uid],
     queryFn: async (): Promise<Notification[]> => {
-      // Live list CF non disponible — même source mock que le web
-      const base = [...MOCK_NOTIFICATIONS];
+      const base: Notification[] = [];
       const readIds = await loadReadIds(user?.uid);
       return applyReadState(base, readIds);
     },

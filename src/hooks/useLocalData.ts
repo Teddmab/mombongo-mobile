@@ -1,29 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  activity,
-  agentReports,
-  courseModules,
-  courses,
-  cropTasks,
-  farmerAlerts,
-  getCourseModules,
-  merchantOrders,
-  myListings,
-  notifications,
-  type ActivityItem,
-  type AgentReport,
-  type Course,
-  type CourseModule,
-  type CropTask,
-  type FarmerAlert,
-  type Instructor,
-  type MerchantOrder,
-  type MyListing,
-  type Notification,
-  type QuizQuestion,
-} from "@/data/mock";
 
-/** Réexport live — bourse / financement branchés Cloud Functions */
+export { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead, type Notification } from "@/hooks/useNotifications";
+
+/** Re-export live hooks — these call real Cloud Functions */
 export {
   useBourseOpportunities,
   useBourseOpportunity,
@@ -45,74 +24,160 @@ export {
   type FarmerListing,
 } from "@/hooks/useFinancing";
 
-/** Données locales — pas encore de Cloud Functions ; mock en dev et prod. */
-function useLocalQuery<T>(key: string, fetcher: () => T) {
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export interface Instructor {
+  name: string;
+  title: string;
+  image: string;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  category: string;
+  duration: string;
+  modules: number;
+  level: "Débutant" | "Intermédiaire" | "Avancé";
+  progress: number;
+  icon: string;
+  image?: string;
+  heroImage?: string;
+  instructor?: Instructor;
+  description: string;
+  isPremium: boolean;
+  previewModules: number;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct: number;
+}
+
+export interface CourseModule {
+  title: string;
+  type: "video" | "reading" | "quiz";
+  duration: string;
+  content?: string;
+  quiz?: QuizQuestion[];
+}
+
+export interface ActivityItem {
+  id: string;
+  kind: "profit" | "opportunity" | "report" | "course";
+  title: string;
+  subtitle: string;
+  amount?: string;
+  cta?: string;
+  time: string;
+  tone: "green" | "amber" | "blue";
+}
+
+export interface CropTask {
+  id: string;
+  title: string;
+  date: string;
+  done: boolean;
+  type: "irrigation" | "fertilisation" | "traitement" | "récolte" | "visite";
+}
+
+export interface FarmerAlert {
+  id: string;
+  kind: "weather" | "market" | "agent" | "payment";
+  title: string;
+  body: string;
+  time: string;
+  urgent: boolean;
+}
+
+export interface AgentReport {
+  id: string;
+  farmerName: string;
+  crop: string;
+  region: string;
+  submittedAt: string;
+  status: "validé" | "en attente" | "rejeté";
+}
+
+export interface MyListing {
+  id: string;
+  name: string;
+  category: string;
+  icon: string;
+  quantity: number;
+  unit: string;
+  pricePerUnitFC: number;
+  region: string;
+  harvestDate: string;
+  status: "en vente" | "vendu" | "brouillon" | "expiré";
+  investorsCount: number;
+  fundingPct: number;
+  targetUsd: number;
+}
+
+export interface MerchantOrder {
+  id: string;
+  product: string;
+  icon: string;
+  supplier: string;
+  region: string;
+  quantity: number;
+  unit: string;
+  pricePerUnitFC: number;
+  totalUsd: number;
+  status: "en cours" | "livré" | "annulé" | "en attente";
+  deliveryDate: string;
+  category: string;
+}
+
+// ─── Hooks (return empty arrays until Cloud Functions are built) ─────────────
+
+function useLocalQuery<T>(key: string, data: T) {
   return useQuery({
     queryKey: ["local", key],
-    queryFn: async () => fetcher(),
+    queryFn: async () => data,
     staleTime: Infinity,
   });
 }
 
-export function useNotifications() {
-  return useLocalQuery<Notification[]>("notifications", () => notifications);
-}
-
 export function useCourses() {
-  return useLocalQuery<Course[]>("courses", () => courses);
+  return useLocalQuery<Course[]>("courses", []);
 }
 
-export function useCourseModules(courseId?: string) {
+export function useCourseModules(_courseId?: string) {
   return useQuery({
-    queryKey: ["local", "courseModules", courseId],
-    queryFn: async () => {
-      if (!courseId) return [];
-      const course = courses.find((c) => c.id === courseId);
-      return course ? getCourseModules(course) : [];
-    },
-    enabled: Boolean(courseId),
+    queryKey: ["local", "courseModules", _courseId],
+    queryFn: async (): Promise<CourseModule[]> => [],
+    enabled: Boolean(_courseId),
     staleTime: Infinity,
   });
 }
 
 export function useAllCourseModules() {
-  return useLocalQuery<Record<string, CourseModule[]>>("allCourseModules", () => courseModules);
+  return useLocalQuery<Record<string, CourseModule[]>>("allCourseModules", {});
 }
 
 export function useAgentReports() {
-  return useLocalQuery<AgentReport[]>("agentReports", () => agentReports);
+  return useLocalQuery<AgentReport[]>("agentReports", []);
 }
 
 export function useCropTasks() {
-  return useLocalQuery<CropTask[]>("cropTasks", () => cropTasks);
+  return useLocalQuery<CropTask[]>("cropTasks", []);
 }
 
 export function useFarmerAlerts() {
-  return useLocalQuery<FarmerAlert[]>("farmerAlerts", () => farmerAlerts);
+  return useLocalQuery<FarmerAlert[]>("farmerAlerts", []);
 }
 
 export function useMyListings() {
-  return useLocalQuery<MyListing[]>("myListings", () => myListings);
+  return useLocalQuery<MyListing[]>("myListings", []);
 }
 
 export function useMerchantOrders() {
-  return useLocalQuery<MerchantOrder[]>("merchantOrders", () => merchantOrders);
+  return useLocalQuery<MerchantOrder[]>("merchantOrders", []);
 }
 
 export function useActivity() {
-  return useLocalQuery<ActivityItem[]>("activity", () => activity);
+  return useLocalQuery<ActivityItem[]>("activity", []);
 }
-
-export type {
-  ActivityItem,
-  AgentReport,
-  Course,
-  CourseModule,
-  CropTask,
-  FarmerAlert,
-  Instructor,
-  MerchantOrder,
-  MyListing,
-  Notification,
-  QuizQuestion,
-};

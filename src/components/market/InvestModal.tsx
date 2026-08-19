@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { isDevMode } from "@/lib/dev";
 import { functions } from "@/lib/firebase";
 import { colors, radii, spacing } from "@/theme";
 import { httpsCallable } from "firebase/functions";
@@ -79,16 +78,11 @@ export function InvestModal({
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      if (isDevMode()) {
-        await new Promise((r) => setTimeout(r, 800));
-        setInvestmentId("mock-inv-" + Date.now());
-      } else {
-        const { data } = await createInvestmentFn({
-          productId: product.id,
-          amountUsd: amount,
-        });
-        setInvestmentId(data.investmentId);
-      }
+      const { data } = await createInvestmentFn({
+        productId: product.id,
+        amountUsd: amount,
+      });
+      setInvestmentId(data.investmentId);
       setStep("success");
       onSuccess?.();
     } catch (err: unknown) {

@@ -9,7 +9,7 @@ import {
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import i18n from "@/i18n";
-import { auth, functions, isDevMode } from "@/lib/firebase";
+import { auth, functions } from "@/lib/firebase";
 import type { UserRole } from "@/context/AuthContext";
 
 export class AuthServiceError extends Error {
@@ -54,9 +54,6 @@ function toAuthError(err: unknown): AuthServiceError {
 
 class AuthService {
   async signIn(email: string, password: string): Promise<FirebaseUser> {
-    if (isDevMode()) {
-      return { uid: "dev-user-001", email } as unknown as FirebaseUser;
-    }
     try {
       const { user } = await signInWithEmailAndPassword(auth, email, password);
       return user;
@@ -71,13 +68,6 @@ class AuthService {
     fullName: string,
     role: UserRole,
   ): Promise<FirebaseUser> {
-    if (isDevMode()) {
-      return {
-        uid: "dev-user-001",
-        email,
-        displayName: fullName,
-      } as unknown as FirebaseUser;
-    }
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: fullName });
@@ -118,7 +108,6 @@ class AuthService {
     if (!email.trim()) {
       throw new AuthServiceError("invalid-email", i18n.t("auth.error.invalidEmail"));
     }
-    if (isDevMode()) return;
     try {
       await sendPasswordResetEmail(auth, email);
     } catch (e) {
