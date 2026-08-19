@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -14,6 +15,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useFarmers, type Farmer } from "@/hooks/useLocalData";
+import { isDevMode } from "@/lib/dev";
+import {
+  createFinancingApplication,
+  firebaseErrorMessage,
+} from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
 
 export function MerchantFinancementContent({ bottomInset }: { bottomInset: number }) {
@@ -93,7 +99,31 @@ export function MerchantFinancementContent({ bottomInset }: { bottomInset: numbe
 }
 
 function PreAchatModal({ farmer, onClose }: { farmer: Farmer | null; onClose: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
+
   if (!farmer) return null;
+
+  const confirm = async () => {
+    const amountUsd = Number(amount) || farmer.needed || 100;
+    setLoading(true);
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await createFinancingApplication({
+          farmerId: farmer.id,
+          amountUsd,
+        });
+      }
+      Alert.alert("Mombongo", "Pré-achat enregistré");
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible d'enregistrer le pré-achat."));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal visible={!!farmer} animationType="slide" transparent onRequestClose={onClose}>
@@ -105,16 +135,26 @@ function PreAchatModal({ farmer, onClose }: { farmer: Farmer | null; onClose: ()
         <Text style={styles.modalHint}>
           Proposez un montant d'avance contre récolte garantie. Un agent validera la demande.
         </Text>
+        <TextInput
+          value={amount}
+          onChangeText={setAmount}
+          keyboardType="number-pad"
+          placeholder={`Montant USD (défaut ${farmer.needed || 100})`}
+          placeholderTextColor={colors.gray[400]}
+          style={styles.modalInput}
+        />
         <Pressable
-          onPress={() => {
-            Alert.alert("Mombongo", "Pré-achat enregistré (mock)");
-            onClose();
-          }}
-          style={styles.modalConfirm}
+          onPress={confirm}
+          disabled={loading}
+          style={[styles.modalConfirm, loading && { opacity: 0.6 }]}
         >
-          <Text style={styles.modalConfirmText}>Confirmer le pré-achat</Text>
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.modalConfirmText}>Confirmer le pré-achat</Text>
+          )}
         </Pressable>
-        <Pressable onPress={onClose}>
+        <Pressable onPress={onClose} disabled={loading}>
           <Text style={styles.modalCancel}>Annuler</Text>
         </Pressable>
       </View>
@@ -212,6 +252,17 @@ const styles = StyleSheet.create({
   modalSub: { fontSize: 14, fontWeight: "600", color: colors.purple[700], marginTop: 4 },
   modalCrops: { fontSize: 12, color: colors.gray[500], marginTop: 2 },
   modalHint: { fontSize: 12, color: colors.gray[500], marginTop: spacing.lg, lineHeight: 18 },
+  modalInput: {
+    marginTop: spacing.md,
+    height: 44,
+    paddingHorizontal: 14,
+    backgroundColor: colors.gray[50],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: radii.lg,
+    fontSize: 13,
+    color: colors.gray[900],
+  },
   modalConfirm: {
     marginTop: spacing.lg,
     height: 48,

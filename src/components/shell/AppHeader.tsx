@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { logoMombongo } from "@/assets/images";
 import { colors, spacing } from "@/theme";
 
@@ -30,6 +31,7 @@ export function AppHeader() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
+  const unread = useUnreadNotificationCount();
   const badge = ROLE_BADGE[role] ?? ROLE_BADGE.investor;
   const firstName = (userProfile?.displayName || "Alain").split(" ")[0];
 
@@ -68,9 +70,18 @@ export function AppHeader() {
         </View>
 
         <View style={styles.headerActions}>
-          <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications" as never)}>
+          <Pressable
+            style={styles.iconBtn}
+            onPress={() => router.push("/notifications" as never)}
+            testID="notification-bell"
+            accessibilityLabel={t("notifications.enable")}
+          >
             <Ionicons name="notifications-outline" size={20} color={colors.gray[700]} />
-            <View style={styles.dot} />
+            {unread > 0 ? (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{unread > 9 ? "9+" : String(unread)}</Text>
+              </View>
+            ) : null}
           </Pressable>
           {routeKey === "/profile" ? (
             <Pressable
@@ -125,15 +136,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerActions: { flexDirection: "row", alignItems: "center" },
-  dot: {
+  unreadBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
     backgroundColor: colors.danger,
     borderWidth: 2,
     borderColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: colors.white,
   },
 });

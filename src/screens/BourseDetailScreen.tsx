@@ -8,9 +8,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PaymentModal } from "@/components/PaymentModal";
+import { BourseInvestModal } from "@/components/bourse/BourseInvestModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
+import { useAuth } from "@/hooks/useAuth";
 import { useBourseOpportunity } from "@/hooks/useBourse";
 import type { BourseOpportunity } from "@/hooks/useBourse";
 import { colors, radii, shadows, spacing } from "@/theme";
@@ -26,7 +27,9 @@ const TYPE_ICON: Record<
 
 export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }) {
   const insets = useSafeAreaInsets();
+  const { userProfile, refreshProfile } = useAuth();
   const { data: opp, isLoading } = useBourseOpportunity(opportunityId);
+  const walletCdf = userProfile?.walletCdf ?? 0;
 
   const [stake, setStake] = useState(50000);
   const [payOpen, setPayOpen] = useState(false);
@@ -189,15 +192,15 @@ export function BourseDetailScreen({ opportunityId }: { opportunityId?: string }
         </Pressable>
       </View>
 
-      <PaymentModal
+      <BourseInvestModal
         visible={payOpen}
         onClose={() => setPayOpen(false)}
-        type="reserve"
-        title="Réservation Bourse"
-        subtitle={opp.title}
-        amount={stake}
-        currency="FC"
-        onSuccess={() => setPayOpen(false)}
+        opportunity={opp}
+        walletCdf={walletCdf}
+        initialAmount={stake}
+        onSuccess={() => {
+          void refreshProfile();
+        }}
       />
     </View>
   );

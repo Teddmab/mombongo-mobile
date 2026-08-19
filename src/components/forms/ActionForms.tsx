@@ -15,7 +15,60 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAgentFarmers, type BourseOpportunity } from "@/hooks/useLocalData";
+import {
+  useCreateBuyerOrder,
+  useCreateProductListing,
+} from "@/hooks/useProductListings";
+import { isDevMode } from "@/lib/dev";
+import {
+  firebaseErrorMessage,
+  submitUserAction,
+} from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
+
+const AGRO_COMMODITIES = [
+  "Maïs",
+  "Manioc",
+  "Riz",
+  "Haricot",
+  "Cacao",
+  "Café",
+  "Palmier",
+  "Arachide",
+  "Banane",
+  "Tomate",
+  "Pastèque",
+  "Aubergine",
+  "Autre",
+];
+const DRC_PROVINCES = [
+  "Kinshasa",
+  "Kongo-Central",
+  "Kwango",
+  "Kwilu",
+  "Mai-Ndombe",
+  "Kasaï",
+  "Kasaï-Central",
+  "Kasaï-Oriental",
+  "Lomami",
+  "Sankuru",
+  "Maniema",
+  "Sud-Kivu",
+  "Nord-Kivu",
+  "Ituri",
+  "Haut-Uele",
+  "Tshopo",
+  "Bas-Uele",
+  "Nord-Ubangi",
+  "Mongala",
+  "Sud-Ubangi",
+  "Équateur",
+  "Tshuapa",
+  "Tanganyika",
+  "Haut-Lomami",
+  "Lualaba",
+  "Haut-Katanga",
+];
 
 function FormModal({
   visible,
@@ -168,10 +221,27 @@ export function PublierProduitModal({
   const submit = async () => {
     if (!name || !qty || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Annonce "${name}" publiée avec succès`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_product", {
+          name,
+          category,
+          qty: Number(qty) || qty,
+          unit,
+          price: Number(price) || price,
+          region,
+          harvestDate,
+        });
+      }
+      Alert.alert("Mombongo", `Annonce "${name}" publiée avec succès`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier l'annonce."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -289,10 +359,27 @@ export function CommanderModal({
   const submit = async () => {
     if (!qty || !address) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Commande de ${qty} ${unit} de ${productName} confirmée`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("place_order", {
+          productName,
+          qty: Number(qty) || qty,
+          unit,
+          address,
+          date,
+          payment,
+          notes,
+        });
+      }
+      Alert.alert("Mombongo", `Commande de ${qty} ${unit} de ${productName} confirmée`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de confirmer la commande."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -352,98 +439,363 @@ export function CommanderModal({
   );
 }
 
-/* ─── Mettre en vente — Bourse (Agriculteur) ───────────────────────────────── */
+/* ─── Mettre en vente — Bourse Agro Exchange (S8-01) ───────────────────────── */
 
 export function MettreEnVenteModal({
   visible,
   onClose,
+  prefill,
 }: {
   visible: boolean;
   onClose: () => void;
+  prefill?: { commodity?: string; province?: string };
 }) {
-  const [crop, setCrop] = useState("Pastèques");
-  const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState("bacs");
-  const [price, setPrice] = useState("");
-  const [available, setAvailable] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [commodity, setCommodity] = useState(prefill?.commodity ?? AGRO_COMMODITIES[0]);
+  const [quantityKg, setQuantityKg] = useState("");
+  const [quality, setQuality] = useState<"A" | "B" | "C">("B");
+  const [province, setProvince] = useState(prefill?.province ?? "Kinshasa");
+  const [territory, setTerritory] = useState("");
+  const [pricePerKgCdf, setPricePerKgCdf] = useState("");
+  const [availableFrom, setAvailableFrom] = useState("");
+  const [availableUntil, setAvailableUntil] = useState("");
+  const [description, setDescription] = useState("");
+  const [success, setSuccess] = useState(false);
+  const { mutateAsync, isPending } = useCreateProductListing();
 
   useEffect(() => {
     if (!visible) return;
-    setCrop("Pastèques");
-    setQty("");
-    setUnit("bacs");
-    setPrice("");
-    setAvailable("");
-    setLoading(false);
-  }, [visible]);
+    setCommodity(prefill?.commodity ?? AGRO_COMMODITIES[0]);
+    setQuantityKg("");
+    setQuality("B");
+    setProvince(prefill?.province ?? "Kinshasa");
+    setTerritory("");
+    setPricePerKgCdf("");
+    setAvailableFrom("");
+    setAvailableUntil("");
+    setDescription("");
+    setSuccess(false);
+  }, [visible, prefill?.commodity, prefill?.province]);
 
   const submit = async () => {
-    if (!qty || !price) return;
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `${crop} mis en vente sur la Bourse`);
-    onClose();
+    if (!quantityKg || !pricePerKgCdf || !territory || !availableFrom || !availableUntil) {
+      Alert.alert("Mombongo", "Remplissez tous les champs obligatoires");
+      return;
+    }
+    try {
+      await mutateAsync({
+        commodity,
+        quantityKg: Number(quantityKg),
+        quality,
+        province,
+        territory,
+        pricePerKgCdf: Number(pricePerKgCdf),
+        availableFrom,
+        availableUntil,
+        description,
+      });
+      setSuccess(true);
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier l'offre."));
+    }
   };
+
+  if (success) {
+    return (
+      <FormModal
+        visible={visible}
+        onClose={() => {
+          setSuccess(false);
+          onClose();
+        }}
+        title="Mise en vente"
+      >
+        <View style={{ alignItems: "center", gap: spacing.md, paddingVertical: spacing.xl }}>
+          <Ionicons name="checkmark-circle" size={48} color={colors.green[700]} />
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.gray[900] }}>
+            Offre publiée !
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.gray[500], textAlign: "center" }}>
+            Votre offre de {quantityKg} kg de {commodity} est visible sur la Bourse.
+          </Text>
+          <SubmitBtn
+            label="Fermer"
+            icon="close"
+            onPress={() => {
+              setSuccess(false);
+              onClose();
+            }}
+          />
+        </View>
+      </FormModal>
+    );
+  }
 
   return (
     <FormModal visible={visible} onClose={onClose} title="Mettre en vente sur la Bourse">
-      <Field label="Culture à vendre">
+      <Field label="Produit *">
         <ChipRow
-          options={CROPS.map((c) => ({ id: c, label: c }))}
-          value={crop}
-          onChange={setCrop}
+          options={AGRO_COMMODITIES.map((c) => ({ id: c, label: c }))}
+          value={commodity}
+          onChange={setCommodity}
         />
       </Field>
       <View style={styles.row}>
         <View style={styles.flex}>
-          <Field label="Quantité disponible">
+          <Field label="Quantité (kg) *">
             <TextInput
-              value={qty}
-              onChangeText={setQty}
+              value={quantityKg}
+              onChangeText={setQuantityKg}
               keyboardType="number-pad"
-              placeholder="180"
+              placeholder="20000"
               placeholderTextColor={colors.gray[400]}
               style={styles.input}
             />
           </Field>
         </View>
         <View style={styles.flex}>
-          <Field label="Unité">
+          <Field label="Qualité *">
             <ChipRow
-              options={["bacs", "kg", "sacs"].map((u) => ({ id: u, label: u }))}
-              value={unit}
-              onChange={setUnit}
+              options={[
+                { id: "A", label: "A" },
+                { id: "B", label: "B" },
+                { id: "C", label: "C" },
+              ]}
+              value={quality}
+              onChange={(v) => setQuality(v as "A" | "B" | "C")}
             />
           </Field>
         </View>
       </View>
-      <Field label="Prix demandé / unité (FC)">
+      <Field label="Province *">
+        <ChipRow
+          options={DRC_PROVINCES.slice(0, 8).map((p) => ({ id: p, label: p }))}
+          value={province}
+          onChange={setProvince}
+        />
+      </Field>
+      <Field label="Territoire *">
         <TextInput
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="number-pad"
-          placeholder="850"
+          value={territory}
+          onChangeText={setTerritory}
+          placeholder="ex: Kikwit"
           placeholderTextColor={colors.gray[400]}
           style={styles.input}
         />
       </Field>
-      <Field label="Disponible à partir du">
+      <Field label="Prix demandé / kg (FC) *">
         <TextInput
-          value={available}
-          onChangeText={setAvailable}
+          value={pricePerKgCdf}
+          onChangeText={setPricePerKgCdf}
+          keyboardType="number-pad"
+          placeholder="400"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <Field label="Disponible dès *">
+            <TextInput
+              value={availableFrom}
+              onChangeText={setAvailableFrom}
+              placeholder="AAAA-MM-JJ"
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+        <View style={styles.flex}>
+          <Field label="Jusqu'au *">
+            <TextInput
+              value={availableUntil}
+              onChangeText={setAvailableUntil}
+              placeholder="AAAA-MM-JJ"
+              placeholderTextColor={colors.gray[400]}
+              style={styles.input}
+            />
+          </Field>
+        </View>
+      </View>
+      <Field label="Description (facultatif)">
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          placeholder="Variété, stockage, livraison…"
+          placeholderTextColor={colors.gray[400]}
+          style={[styles.input, styles.textarea]}
+        />
+      </Field>
+      <SubmitBtn
+        label="Publier mon offre"
+        icon="pricetag-outline"
+        onPress={submit}
+        loading={isPending}
+        disabled={!quantityKg || !pricePerKgCdf || !territory || !availableFrom || !availableUntil}
+      />
+    </FormModal>
+  );
+}
+
+/* ─── Publier une demande d'achat (S8-02) ──────────────────────────────────── */
+
+export function PublierDemandeModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [commodity, setCommodity] = useState(AGRO_COMMODITIES[0]);
+  const [quantityKg, setQuantityKg] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [province, setProvince] = useState("Kinshasa");
+  const [territory, setTerritory] = useState("");
+  const [neededBy, setNeededBy] = useState("");
+  const [description, setDescription] = useState("");
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const { mutateAsync, isPending } = useCreateBuyerOrder();
+
+  useEffect(() => {
+    if (!visible) return;
+    setCommodity(AGRO_COMMODITIES[0]);
+    setQuantityKg("");
+    setMaxPrice("");
+    setProvince("Kinshasa");
+    setTerritory("");
+    setNeededBy("");
+    setDescription("");
+    setMatchCount(null);
+  }, [visible]);
+
+  const submit = async () => {
+    if (!quantityKg || !maxPrice || !neededBy) {
+      Alert.alert("Mombongo", "Remplissez les champs obligatoires");
+      return;
+    }
+    try {
+      const res = await mutateAsync({
+        commodity,
+        quantityKg: Number(quantityKg),
+        maxPricePerKgCdf: Number(maxPrice),
+        deliveryProvince: province,
+        deliveryTerritory: territory,
+        neededBy,
+        description,
+      });
+      setMatchCount(res.matchCount ?? 0);
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier la demande."));
+    }
+  };
+
+  if (matchCount !== null) {
+    return (
+      <FormModal
+        visible={visible}
+        onClose={() => {
+          setMatchCount(null);
+          onClose();
+        }}
+        title="Demande publiée"
+      >
+        <View style={{ alignItems: "center", gap: spacing.md, paddingVertical: spacing.xl }}>
+          <Ionicons name="checkmark-circle" size={48} color={colors.purple[700]} />
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.gray[900] }}>
+            Demande enregistrée
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.gray[500], textAlign: "center" }}>
+            {matchCount} offre{matchCount > 1 ? "s" : ""} correspondent à votre demande.
+          </Text>
+          <SubmitBtn
+            label="Fermer"
+            icon="close"
+            color="purple"
+            onPress={() => {
+              setMatchCount(null);
+              onClose();
+            }}
+          />
+        </View>
+      </FormModal>
+    );
+  }
+
+  return (
+    <FormModal visible={visible} onClose={onClose} title="Publier une demande">
+      <Field label="Produit *">
+        <ChipRow
+          options={AGRO_COMMODITIES.map((c) => ({ id: c, label: c }))}
+          value={commodity}
+          onChange={setCommodity}
+        />
+      </Field>
+      <Field label="Quantité (kg) *">
+        <TextInput
+          value={quantityKg}
+          onChangeText={setQuantityKg}
+          keyboardType="number-pad"
+          placeholder="5000"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <Field label="Prix max / kg (FC) *">
+        <TextInput
+          value={maxPrice}
+          onChangeText={setMaxPrice}
+          keyboardType="number-pad"
+          placeholder="450"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <Field label="Province de livraison *">
+        <ChipRow
+          options={DRC_PROVINCES.slice(0, 8).map((p) => ({ id: p, label: p }))}
+          value={province}
+          onChange={setProvince}
+        />
+      </Field>
+      <Field label="Territoire">
+        <TextInput
+          value={territory}
+          onChangeText={setTerritory}
+          placeholder="ex: Gombe"
+          placeholderTextColor={colors.gray[400]}
+          style={styles.input}
+        />
+      </Field>
+      <Field label="Besoin avant le *">
+        <TextInput
+          value={neededBy}
+          onChangeText={setNeededBy}
           placeholder="AAAA-MM-JJ"
           placeholderTextColor={colors.gray[400]}
           style={styles.input}
         />
       </Field>
+      <Field label="Description">
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          placeholder="Qualité, packaging…"
+          placeholderTextColor={colors.gray[400]}
+          style={[styles.input, styles.textarea]}
+        />
+      </Field>
       <SubmitBtn
-        label="Mettre en vente"
-        icon="pricetag-outline"
+        label="Publier la demande"
+        icon="bag-add-outline"
+        color="purple"
         onPress={submit}
-        loading={loading}
-        disabled={!qty || !price}
+        loading={isPending}
+        disabled={!quantityKg || !maxPrice || !neededBy}
       />
     </FormModal>
   );
@@ -489,10 +841,29 @@ export function PublierPourAgriculteurModal({
   const submit = async () => {
     if (!farmerId || !name || !qty || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Annonce "${name}" publiée pour ${farmer?.name}`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_for_farmer", {
+          farmerId,
+          farmerName: farmer?.name,
+          name,
+          category,
+          qty: Number(qty) || qty,
+          unit,
+          price: Number(price) || price,
+          region: region || farmer?.region,
+          harvestDate,
+        });
+      }
+      Alert.alert("Mombongo", `Annonce "${name}" publiée pour ${farmer?.name}`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier pour l'agriculteur."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -630,10 +1001,26 @@ export function ReserverLotModal({
   const submit = async () => {
     if (!opportunity) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Lot réservé — ${opportunity.title}`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("reserve_lot", {
+          opportunityId: opportunity.id,
+          title: opportunity.title,
+          parts: Number(parts) || 1,
+          payment,
+          price: opportunity.price,
+          volume: opportunity.volume,
+        });
+      }
+      Alert.alert("Mombongo", `Lot réservé — ${opportunity.title}`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de réserver le lot."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!opportunity) return null;
@@ -725,10 +1112,28 @@ export function PublierLotModal({
   const submit = async () => {
     if (!title || !origin || !volume || !price) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    Alert.alert("Mombongo", `Lot "${title}" publié sur la Bourse`);
-    onClose();
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        await submitUserAction("publish_lot", {
+          title,
+          type,
+          origin,
+          destination: type === "transport" ? destination : undefined,
+          volume,
+          price,
+          duration,
+          spots: Number(spots) || spots,
+        });
+      }
+      Alert.alert("Mombongo", `Lot "${title}" publié sur la Bourse`);
+      onClose();
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de publier le lot."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

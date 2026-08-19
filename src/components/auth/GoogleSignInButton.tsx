@@ -2,7 +2,9 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { Role } from "@/context/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
+import { isDevMode } from "@/lib/dev";
 import {
   isExpoGo,
   isGoogleSignInConfigured,
@@ -58,6 +60,69 @@ function GoogleSignInButtonLive({
   );
 }
 
+function GoogleSignInButtonDev({
+  role,
+  loading,
+  setLoading,
+  setError,
+}: {
+  role: Role;
+  loading: boolean;
+  setLoading: (v: boolean) => void;
+  setError: (m: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { signInDev } = useAuth();
+
+  const handlePress = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInDev(role);
+      router.replace("/(tabs)/home");
+    } catch {
+      setError("Erreur lors de la connexion.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Pressable
+      testID="google-signin"
+      onPress={handlePress}
+      disabled={loading}
+      style={[styles.googleBtn, loading && styles.btnDisabled]}
+    >
+      <GoogleIcon />
+      <Text style={styles.googleBtnText}>{t("auth.google")}</Text>
+    </Pressable>
+  );
+}
+
+function GoogleSignInButtonExpoGo({
+  setError,
+}: {
+  setError: (m: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Pressable
+      testID="google-signin"
+      onPress={() =>
+        setError(
+          "Google Sign-In natif nécessite un build EAS (pas Expo Go). Lancez : eas build -p android --profile preview",
+        )
+      }
+      style={styles.googleBtn}
+    >
+      <GoogleIcon />
+      <Text style={styles.googleBtnText}>{t("auth.google")}</Text>
+    </Pressable>
+  );
+}
+
 /** Bouton Google — Sign-In natif (Android + iOS). Expo Go : message explicatif. */
 export function GoogleSignInButton({
   role,
@@ -70,8 +135,12 @@ export function GoogleSignInButton({
   setLoading: (v: boolean) => void;
   setError: (m: string | null) => void;
 }) {
-  // Expo Go : pas de module natif — on affiche le bouton qui explique au tap
+  // Expo Go : ne jamais charger le module natif (TurboModule crash)
   if (isExpoGo()) {
+    return <GoogleSignInButtonExpoGo setError={setError} />;
+  }
+
+  if (isNativeGoogleSignInAvailable()) {
     return (
       <GoogleSignInButtonLive
         role={role}
@@ -82,9 +151,9 @@ export function GoogleSignInButton({
     );
   }
 
-  if (isNativeGoogleSignInAvailable()) {
+  if (!isGoogleSignInConfigured() && isDevMode()) {
     return (
-      <GoogleSignInButtonLive
+      <GoogleSignInButtonDev
         role={role}
         loading={loading}
         setLoading={setLoading}

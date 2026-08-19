@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+export { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead, type Notification } from "@/hooks/useNotifications";
+
 /** Re-export live hooks — these call real Cloud Functions */
 export {
   useBourseOpportunities,
@@ -11,23 +13,18 @@ export {
 } from "@/hooks/useBourse";
 
 export {
+  useAgentFarmers,
+  useCreateFinancingApplication,
+  useCulturalEvents,
   useFarmer,
   useFarmers,
+  type AgentFarmerCard,
+  type CulturalEvent,
   type Farmer,
   type FarmerListing,
 } from "@/hooks/useFinancing";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-export interface Notification {
-  id: string;
-  kind: "profit" | "opportunity" | "report" | "course" | "system";
-  title: string;
-  body: string;
-  time: string;
-  date: string;
-  read: boolean;
-}
 
 export interface Instructor {
   name: string;
@@ -94,18 +91,6 @@ export interface FarmerAlert {
   urgent: boolean;
 }
 
-export interface AgentFarmerCard {
-  id: string;
-  name: string;
-  crop: string;
-  region: string;
-  stage: string;
-  status: "ok" | "attention" | "urgent";
-  lastVisit: string;
-  daysToHarvest: number;
-  surfaceHa: number;
-}
-
 export interface AgentReport {
   id: string;
   farmerName: string;
@@ -156,10 +141,6 @@ function useLocalQuery<T>(key: string, data: T) {
   });
 }
 
-export function useNotifications() {
-  return useLocalQuery<Notification[]>("notifications", []);
-}
-
 export function useCourses() {
   return useLocalQuery<Course[]>("courses", []);
 }
@@ -175,10 +156,6 @@ export function useCourseModules(_courseId?: string) {
 
 export function useAllCourseModules() {
   return useLocalQuery<Record<string, CourseModule[]>>("allCourseModules", {});
-}
-
-export function useAgentFarmers() {
-  return useLocalQuery<AgentFarmerCard[]>("agentFarmers", []);
 }
 
 export function useAgentReports() {

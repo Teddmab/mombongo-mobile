@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,8 +16,15 @@ import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useFarmers } from "@/hooks/useFinancing";
 import { useAgentFarmers } from "@/hooks/useLocalData";
+import { isDevMode } from "@/lib/dev";
+import {
+  firebaseErrorMessage,
+  submitAgentReport,
+} from "@/services/actions.service";
 import { colors, radii, shadows, spacing } from "@/theme";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CONDITIONS = [
   { v: 1, label: "Très mauvais", color: "#EF4444" },
@@ -173,9 +180,31 @@ function SuccessView({
 
 function AgentReportForm() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { userProfile } = useAuth();
-  const { data: agentFarmers = [] } = useAgentFarmers();
+  const { data: agentFarmers = [], isLoading: agentFarmersLoading } = useAgentFarmers();
+  const { data: financingFarmers = [] } = useFarmers();
   const agentName = userProfile?.displayName || "Patrick Kadima";
+
+  const farmerOptions = useMemo(
+    () =>
+      agentFarmers.length > 0
+        ? agentFarmers.map((f) => ({
+            id: f.id,
+            name: f.name,
+            crop: f.crop,
+            region: f.region,
+            surfaceHa: f.surfaceHa,
+          }))
+        : financingFarmers.map((f) => ({
+            id: f.id,
+            name: f.name,
+            crop: f.crops[0] ?? "",
+            region: f.location,
+            surfaceHa: f.surface,
+          })),
+    [agentFarmers, financingFarmers],
+  );
 
   const [farmerId, setFarmerId] = useState("");
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0]);
@@ -190,18 +219,39 @@ function AgentReportForm() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const selectedFarmer = agentFarmers.find((f) => f.id === farmerId);
+  const selectedFarmer = farmerOptions.find((f) => f.id === farmerId);
 
   useEffect(() => {
-    if (!farmerId && agentFarmers[0]?.id) setFarmerId(agentFarmers[0].id);
-  }, [agentFarmers, farmerId]);
+    if (!farmerId && farmerOptions[0]?.id) setFarmerId(farmerOptions[0].id);
+  }, [farmerOptions, farmerId]);
 
   const submit = async () => {
     if (!farmerId || !recommendations.trim()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      if (isDevMode()) {
+        await new Promise((r) => setTimeout(r, 1000));
+      } else {
+        await submitAgentReport({
+          farmerId,
+          recommendations: recommendations.trim(),
+          visitDate: visitDate || undefined,
+          cropCondition: condition,
+          growthStage: stage,
+          surfaceHa: parseFloat(surface) || undefined,
+          problems,
+          disbursedUsd: disbursed ? Number(disbursed) : undefined,
+          additionalNeedUsd: additionalNeeds ? Number(additionalNeeds) : undefined,
+          nextVisitDate: nextVisit || undefined,
+        });
+        void qc.invalidateQueries({ queryKey: ["agent-farmers"] });
+      }
+      setSubmitted(true);
+    } catch (err) {
+      Alert.alert("Mombongo", firebaseErrorMessage(err, "Impossible de soumettre le rapport."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -224,7 +274,15 @@ function AgentReportForm() {
       <SectionHeader n={1} label="Identification de la visite" icon="clipboard-outline" />
       <FieldLabel>Agriculteur visité</FieldLabel>
       <View style={styles.farmerList}>
-        {agentFarmers.map((f) => (
+        {agentFarmersLoading && farmerOptions.length === 0 ? (
+          <Text style={{ color: colors.gray[500], fontSize: 13 }}>Chargement des agriculteurs…</Text>
+        ) : null}
+        {!agentFarmersLoading && farmerOptions.length === 0 ? (
+          <Text style={{ color: colors.gray[500], fontSize: 13 }}>
+            Aucun agriculteur assigné pour le moment.
+          </Text>
+        ) : null}
+        {farmerOptions.map((f) => (
           <Pressable
             key={f.id}
             onPress={() => setFarmerId(f.id)}

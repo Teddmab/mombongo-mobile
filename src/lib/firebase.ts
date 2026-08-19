@@ -1,6 +1,18 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
+import {
+  connectAuthEmulator,
+  getAuth,
+  initializeAuth,
+  type Auth,
+} from "firebase/auth";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
+
+// Types web de firebase/auth n'exposent pas l'API RN — Metro résout le champ "react-native"
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getReactNativePersistence } = require("@firebase/auth") as {
+  getReactNativePersistence: (storage: typeof ReactNativeAsyncStorage) => unknown;
+};
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -14,7 +26,18 @@ const firebaseConfig = {
 
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+function createAuth(): Auth {
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage) as never,
+    });
+  } catch {
+    // Déjà initialisé (Fast Refresh / second import)
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
 /** All data access goes through Cloud Functions — no Firestore/Storage on client */
 export const functions = getFunctions(app, "europe-west1");
 

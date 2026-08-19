@@ -10,9 +10,10 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PaymentModal } from "@/components/PaymentModal";
+import { FundModal } from "@/components/FundModal";
 import { StackHeader } from "@/components/shell/StackHeader";
 import { SCREEN_HORIZONTAL_PADDING } from "@/constants/layout";
+import { useAuth } from "@/hooks/useAuth";
 import { useFarmer } from "@/hooks/useFinancing";
 import { useProducts } from "@/hooks/useProducts";
 import { colors, radii, shadows, spacing } from "@/theme";
@@ -20,9 +21,10 @@ import { colors, radii, shadows, spacing } from "@/theme";
 export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { refreshProfile } = useAuth();
   const { data: f, isLoading } = useFarmer(farmerId);
   const { data: products = [] } = useProducts();
-  const [payOpen, setPayOpen] = useState(false);
+  const [fundOpen, setFundOpen] = useState(false);
 
   if (isLoading || !f) {
     return (
@@ -117,20 +119,18 @@ export function FarmerDetailScreen({ farmerId }: { farmerId?: string }) {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Pressable onPress={() => setPayOpen(true)} style={styles.supportBtn}>
-          <Text style={styles.supportBtnText}>Soutenir cet agriculteur</Text>
+        <Pressable onPress={() => setFundOpen(true)} style={styles.supportBtn}>
+          <Text style={styles.supportBtnText}>Financer cet agriculteur</Text>
         </Pressable>
       </View>
 
-      <PaymentModal
-        visible={payOpen}
-        onClose={() => setPayOpen(false)}
-        type="support"
-        title="Soutien agriculteur"
-        subtitle={f.name}
-        currency="USD"
-        minAmount={50}
-        onSuccess={() => setPayOpen(false)}
+      <FundModal
+        visible={fundOpen}
+        onClose={() => setFundOpen(false)}
+        farmer={f}
+        onSuccess={() => {
+          void refreshProfile();
+        }}
       />
     </View>
   );

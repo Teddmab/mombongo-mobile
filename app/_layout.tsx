@@ -36,7 +36,9 @@ function RootNavigator() {
         <Stack.Screen name="portfolio" />
         <Stack.Screen name="market/[productId]" />
         <Stack.Screen name="bourse/[opportunityId]" />
-        <Stack.Screen name="academia/[courseId]" />
+        <Stack.Screen name="academia/[courseId]/index" />
+        <Stack.Screen name="academia/[courseId]/module/[moduleId]" />
+        <Stack.Screen name="academia/[courseId]/complete" />
       </Stack>
     </>
   );

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PaymentModal } from "@/components/PaymentModal";
 import { BottomSheetShell } from "@/components/ui/BottomSheetShell";
+import { useAuth } from "@/hooks/useAuth";
 import { colors, radii, spacing } from "@/theme";
 
 export interface SubscriptionPlan {
@@ -103,11 +104,15 @@ export function SubscriptionModal({
   visible,
   onClose,
   currentPlanId = "gratuit",
+  walletBalance: walletBalanceProp,
 }: {
   visible: boolean;
   onClose: () => void;
   currentPlanId?: string;
+  walletBalance?: number;
 }) {
+  const { userProfile, refreshProfile } = useAuth();
+  const walletBalance = walletBalanceProp ?? userProfile?.walletUsd ?? 0;
   const [payPlan, setPayPlan] = useState<SubscriptionPlan | null>(null);
 
   return (
@@ -203,10 +208,10 @@ export function SubscriptionModal({
         subtitle={`${payPlan?.name ?? ""} · $${payPlan?.price ?? 0}/mois`}
         amount={payPlan?.price ?? 0}
         currency="USD"
+        walletBalance={walletBalance}
+        referenceId={payPlan?.id}
         onSuccess={() => {
-          setPayPlan(null);
-          onClose();
-          Alert.alert("Mombongo", `Abonnement ${payPlan?.name} activé (mock).`);
+          void refreshProfile();
         }}
       />
     </>
